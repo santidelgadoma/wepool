@@ -58,6 +58,7 @@ lib/
 components/ui/            → Button, Input, Label, Card (estilo shadcn/ui, escritos a mano)
 supabase/migrations/       → esquema de base de datos (ver docs/esquema_base_datos.md)
 e2e/                       → tests end-to-end (Playwright), ver sección "Tests" abajo
+scripts/seed.ts             → datos de ejemplo para la demo, ver sección "Datos de ejemplo" abajo
 ```
 
 ## Lo que ya funciona
@@ -97,3 +98,17 @@ npm run test:e2e:ui
 ```
 
 Los usuarios de prueba (`e2e.conductor@itam.mx`, `e2e.pasajero@itam.mx`) se crean automáticamente antes de correr la suite (`e2e/global-setup.ts`), usando `SUPABASE_SERVICE_ROLE_KEY` para saltarse el flujo de correo — por eso esa variable es obligatoria en `.env.local` para correr los tests, aunque la app en sí solo la necesita para `/consultar`.
+
+## Datos de ejemplo (seed)
+
+`scripts/seed.ts` llena el proyecto con una comunidad ITAM de ejemplo para la demo: 8 usuarios @itam.mx (nombres y direcciones de zonas reales de CDMX — Santa Fe, Interlomas, Del Valle, Coyoacán), 4 vehículos, y 4 parejas conductor/pasajero — 2 ya confirmadas (para que `/manana` e `/historial` tengan contenido de inmediato) y 2 sin emparejar todavía (para mostrar en vivo el algoritmo de emparejamiento y el flujo de confirmación en `/consultar`).
+
+**Requiere que `supabase/migrations/0004_instituciones.sql` ya esté aplicada** (crea la tabla `institutions` — el script falla con un mensaje claro si no la encuentra).
+
+Los viajes son siempre "para mañana", así que hay que correr el seed el día antes de cada demo, no con anticipación:
+
+```bash
+npm run seed
+```
+
+Al final imprime la contraseña de los usuarios de demo — inicia sesión con cualquiera de los 8 correos @itam.mx que muestra la terminal para recorrer la demo. Correrlo de nuevo limpia y vuelve a crear los datos de estos mismos 8 usuarios, así que es seguro repetirlo.
