@@ -1,0 +1,19 @@
+# Copia este archivo a .env.local y llena los valores.
+# .env.local NUNCA se sube a git (ya está en .gitignore).
+
+# Supabase → Settings → API en tu proyecto (carpool-itam)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+# Google Maps Platform (Geocoding + Distance Matrix).
+# Sin prefijo NEXT_PUBLIC: solo se usa desde el servidor (Route Handlers/Server Actions)
+# para no exponer la llave en el navegador.
+GOOGLE_MAPS_API_KEY=
+
+# Resend (correos de recordatorio; la verificación de registro la maneja Supabase Auth)
+RESEND_API_KEY=
+
+# Google Calendar API — pendiente de definir el método de autenticación
+# (cuenta de servicio vs. OAuth de cada usuario). Ver docs/arquitectura_mvp.md.
+# GOOGLE_CALENDAR_CLIENT_ID=
+# GOOGLE_CALENDAR_CLIENT_SECRET=
