@@ -1,6 +1,18 @@
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/server";
+import { ReservaForm } from "@/components/reserva-form";
 
-export default function ReservaPage() {
+export default async function ReservaPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: vehiculos } = await supabase
+    .from("vehicles")
+    .select("id, plate, description")
+    .eq("owner_id", user!.id)
+    .order("created_at", { ascending: false });
+
   return (
     <div className="space-y-6">
       <div>
@@ -9,16 +21,7 @@ export default function ReservaPage() {
           Publica un viaje como conductor o resérvalo como pasajero, de ida o de regreso.
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Próximamente — Fase 3</CardTitle>
-          <CardDescription>
-            Formulario de publicación/reservación: dirección, hora, vehículo y vías de
-            cuota si eres conductor, punto de encuentro para viajes de regreso. Se guarda
-            en <code>trip_offers</code> vía Server Action. Ver <code>PROGRESS.md</code>.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <ReservaForm vehiculos={vehiculos ?? []} />
     </div>
   );
 }
