@@ -63,6 +63,7 @@ const ofertaSchema = z
 export type CrearOfertaState = {
   error?: string;
   fieldErrors?: Record<string, string>;
+  success?: boolean;
 };
 
 export async function crearOferta(
@@ -154,5 +155,5 @@ export async function crearOferta(
 
   revalidatePath("/reserva");
   revalidatePath("/cancelar");
-  return {};
+  return { success: true };
 }

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { WebSocket } from "ws";
 
 // Cliente de Supabase con la llave de servicio — salta Row Level Security
 // por completo. SOLO se debe usar desde código que corre en el servidor
@@ -11,6 +12,15 @@ export function createAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+      // @supabase/supabase-js crea un RealtimeClient internamente aunque no
+      // usemos realtime, y desde una versión reciente exige `WebSocket`
+      // nativo (Node 22+) o falla con "native WebSocket not found". No
+      // dependemos de qué versión de Node corre `npm run dev` en cada
+      // máquina, así que se le pasa `ws` explícitamente — funciona igual en
+      // cualquier versión de Node.
+      realtime: { transport: WebSocket as never },
+    }
   );
 }

@@ -189,6 +189,20 @@ export type ElegirCandidatoState = { error?: string; success?: boolean };
  * crea la fila en confirmed_trips y borra las ofertas de ambos usuarios.
  */
 export async function elegirCandidato(matchId: string): Promise<ElegirCandidatoState> {
+  try {
+    return await elegirCandidatoInterno(matchId);
+  } catch (err) {
+    // Cualquier excepción no controlada (network, bug de tipos, lo que sea)
+    // se convierte en un {error} legible en vez de dejar que la Server
+    // Action rechace la promesa del lado del cliente en silencio. Se loguea
+    // completo aquí porque esto SÍ aparece en la terminal donde corre
+    // `npm run dev` (y en el output "[WebServer]" que captura Playwright).
+    console.error("elegirCandidato: excepción no controlada", err);
+    return { error: "Ocurrió un error inesperado al confirmar el viaje." };
+  }
+}
+
+async function elegirCandidatoInterno(matchId: string): Promise<ElegirCandidatoState> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -271,10 +285,35 @@ export async function elegirCandidato(matchId: string): Promise<ElegirCandidatoS
     return { error: `No se pudo confirmar el viaje: ${errorConfirmado.message}` };
   }
 
-  // Limpia las ofertas de ambos usuarios para este viaje — el ON DELETE
-  // CASCADE de trip_matches se encarga de los matches huérfanos relacionados
-  // (ver docs/esquema_base_datos.md sección 5).
-  await admin.from("trip_offers").delete().in("id", [ofertaConductor.id, ofertaPasajero.id]);
+  // No se borran ni las ofertas ni el trip_matches que las conecta. El
+  // schema real (0001_init_schema.sql) tiene trip_offers -> trip_matches con
+  // ON DELETE CASCADE, PERO confirmed_trips.match_id -> trip_matches NO lo
+  // tiene, a propósito, para conservar el vínculo histórico con el match que
+  // originó la confirmación. Eso significa que el trip_matches recién usado
+  // para crear este confirmed_trips es, por diseño, imposible de borrar — ni
+  // directo ni por cascada al borrar trip_offers. Intentarlo revienta con
+  // "violates foreign key constraint confirmed_trips_match_id_fkey" (este
+  // fue el bug real que encontró el test E2E, ver PROGRESS.md).
+  //
+  // En vez de borrar, se marca la oferta como 'confirmado' — trip_offer_status
+  // ya incluye ese valor en el enum, sin usar hasta ahora. obtenerCandidatos()
+  // filtra por status = 'buscando', así que una oferta confirmada deja de
+  // aparecer como candidato para cualquiera sin necesidad de tocar
+  // trip_matches ni trip_offers vía delete.
+  const { error: errorActualizarOfertas } = await admin
+    .from("trip_offers")
+    .update({ status: "confirmado" })
+    .in("id", [ofertaConductor.id, ofertaPasajero.id]);
+
+  if (errorActualizarOfertas) {
+    console.error(
+      "elegirCandidato: no se pudo actualizar el status de las ofertas",
+      errorActualizarOfertas
+    );
+    return {
+      error: `El viaje se confirmó pero no se pudo actualizar el status de las ofertas: ${errorActualizarOfertas.message}`,
+    };
+  }
 
   revalidatePath("/consultar");
   revalidatePath("/manana");
