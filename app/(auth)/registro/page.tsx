@@ -66,7 +66,10 @@ export default function RegistroPage() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Crear cuenta</CardTitle>
-        <CardDescription>Solo miembros del ITAM (@itam.mx)</CardDescription>
+        <CardDescription>
+          Solo con tu correo institucional — verificamos que tu empresa u organización ya
+          esté dada de alta en Carpool.
+        </CardDescription>
       </CardHeader>
       <form onSubmit={handleSignUp}>
         <CardContent className="space-y-4">
@@ -94,7 +97,7 @@ export default function RegistroPage() {
             <Input
               id="email"
               type="email"
-              placeholder="tuusuario@itam.mx"
+              placeholder="tuusuario@tuinstitucion.mx"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

@@ -2,6 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatearFechaHoraCDMX } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION, ETIQUETA_STATUS_CONFIRMADO } from "@/lib/etiquetas";
+import {
+  duracionDeMatchEmbebido,
+  estimarPrecioDesdeDuracionMinutos,
+  formatearMXN,
+  type TripMatchEmbebido,
+} from "@/lib/pricing";
 
 export default async function HistorialPage() {
   const supabase = await createClient();
@@ -11,7 +17,9 @@ export default async function HistorialPage() {
 
   const { data: viajes } = await supabase
     .from("confirmed_trips")
-    .select("id, direction, home_address, scheduled_time, status, driver_id, passenger_id")
+    .select(
+      "id, direction, home_address, scheduled_time, status, driver_id, passenger_id, trip_matches(estimated_duration_minutes)"
+    )
     .or(`driver_id.eq.${user!.id},passenger_id.eq.${user!.id}`)
     .order("scheduled_time", { ascending: false });
 
@@ -37,22 +45,35 @@ export default async function HistorialPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {viajes.map((viaje) => (
-            <Card key={viaje.id}>
-              <CardHeader>
-                <CardTitle>
-                  {viaje.driver_id === user!.id ? "Conductor" : "Pasajero"} ·{" "}
-                  {ETIQUETA_DIRECCION[viaje.direction as "ida" | "regreso"]} ·{" "}
-                  {ETIQUETA_STATUS_CONFIRMADO[
-                    viaje.status as "programado" | "completado" | "cancelado"
-                  ]}
-                </CardTitle>
-                <CardDescription>
-                  {viaje.home_address} — {formatearFechaHoraCDMX(viaje.scheduled_time)}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ))}
+          {viajes.map((viaje) => {
+            const esConductor = viaje.driver_id === user!.id;
+            const duracion = duracionDeMatchEmbebido(viaje.trip_matches as TripMatchEmbebido);
+            const precio = duracion !== null ? estimarPrecioDesdeDuracionMinutos(duracion) : null;
+
+            return (
+              <Card key={viaje.id}>
+                <CardHeader>
+                  <CardTitle>
+                    {esConductor ? "Conductor" : "Pasajero"} ·{" "}
+                    {ETIQUETA_DIRECCION[viaje.direction as "ida" | "regreso"]} ·{" "}
+                    {ETIQUETA_STATUS_CONFIRMADO[
+                      viaje.status as "programado" | "completado" | "cancelado"
+                    ]}
+                  </CardTitle>
+                  <CardDescription>
+                    {viaje.home_address} — {formatearFechaHoraCDMX(viaje.scheduled_time)}
+                  </CardDescription>
+                  {precio && (
+                    <p className="text-sm font-medium text-emerald-700">
+                      {esConductor
+                        ? `Ganaste ~${formatearMXN(precio.gananciaConductorMXN)}`
+                        : `Pagaste ~${formatearMXN(precio.precioPasajeroMXN)}`}
+                    </p>
+                  )}
+                </CardHeader>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

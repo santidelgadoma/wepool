@@ -13,9 +13,15 @@ export default async function HomePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, phone")
+    .select("full_name, phone, institutions(name)")
     .eq("id", user!.id)
     .single();
+
+  // institutions viene como objeto o arreglo según la versión del cliente de
+  // Supabase que resuelva la relación embebida — se normaliza aquí.
+  const institucion = Array.isArray(profile?.institutions)
+    ? profile?.institutions[0]?.name
+    : (profile?.institutions as { name: string } | null)?.name;
 
   return (
     <div className="space-y-6">
@@ -29,6 +35,7 @@ export default async function HomePage() {
           <CardDescription>
             {user?.email}
             {profile?.phone ? ` · ${profile.phone}` : ""}
+            {institucion ? ` · ${institucion}` : ""}
           </CardDescription>
         </CardHeader>
       </Card>

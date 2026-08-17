@@ -3,15 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { estimarPrecioViaje, VELOCIDAD_PROMEDIO_KMH } from "@/lib/pricing";
 
 const RADIO_KM = 15;
 const VENTANA_MINUTOS = 30;
 const LIMITE_CANDIDATOS = 20;
-// Estimación temporal de duración mientras se conecta Google Distance Matrix
-// (Fase 4, ver PROGRESS.md): velocidad promedio asumida para tráfico urbano
-// de CDMX. El pre-filtro geoespacial (find_candidate_offers) sí es real y
-// corre en PostGIS; solo la duración exacta queda pendiente de Google.
-const VELOCIDAD_PROMEDIO_KMH = 22;
 
 export type CandidatoVista = {
   matchId: string;
@@ -20,6 +16,8 @@ export type CandidatoVista = {
   direction: "ida" | "regreso";
   scheduledTime: string;
   estimatedDurationMinutes: number;
+  precioPasajeroMXN: number;
+  gananciaConductorMXN: number;
   passengerConfirmed: boolean;
   puedoElegir: boolean;
 };
@@ -163,6 +161,12 @@ export async function obtenerCandidatos(): Promise<{
 
     const miRol: "conductor" | "pasajero" = esMiaLaDeConductor ? "conductor" : "pasajero";
 
+    // El precio se deriva de la misma duración estimada que ya se guarda en
+    // trip_matches (que a su vez viene de la distancia real vía PostGIS) —
+    // no hace falta ninguna columna ni tabla nueva. Ver lib/pricing.ts.
+    const distanciaKmEstimada = (m.estimated_duration_minutes / 60) * VELOCIDAD_PROMEDIO_KMH;
+    const { precioPasajeroMXN, gananciaConductorMXN } = estimarPrecioViaje(distanciaKmEstimada);
+
     resultado.push({
       matchId: m.id,
       miRol,
@@ -170,6 +174,8 @@ export async function obtenerCandidatos(): Promise<{
       direction: miOferta.direction,
       scheduledTime: contraparte.scheduled_time,
       estimatedDurationMinutes: m.estimated_duration_minutes,
+      precioPasajeroMXN,
+      gananciaConductorMXN,
       passengerConfirmed: m.passenger_confirmed,
       puedoElegir: miRol === "conductor" ? m.passenger_confirmed : !m.passenger_confirmed,
     });

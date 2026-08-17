@@ -104,8 +104,9 @@ El nuevo flujo tiene dos pasos:
 
 - El registro, la verificación de correo y el guardado seguro de la contraseña ya no se programan a mano: los resuelve **Supabase Auth**.
 - **Actualización 2026-08-14:** el plan original era verificación por código de 6 dígitos (OTP por correo). Desde el 3 de junio de 2026, Supabase restringió la personalización de plantillas de correo (necesaria para mandar un código en vez de un link) a proyectos con SMTP propio o plan de pago. Mientras el proyecto siga en el plan gratuito con el correo por default de Supabase, el registro confirma por **link mágico** en vez de código — ver `app/auth/callback/route.ts` en el proyecto Next.js. La restricción de dominio institucional (siguiente punto) y la creación automática de perfil funcionan igual en ambos flujos, no cambia nada del esquema.
-- La restricción "solo miembros del ITAM" se implementa con un *Auth Hook* de Supabase (`restrict_signup_to_itam_domain`, en `0002_functions.sql`) que rechaza cualquier registro cuyo correo no termine en `@itam.mx`, antes de que la cuenta se cree. Se conecta desde el panel de Supabase en *Authentication → Hooks → Before User Created*. ([Documentación oficial](https://supabase.com/docs/guides/auth/auth-hooks/before-user-created-hook))
-- Cuando Supabase Auth confirma el registro, el trigger `on_auth_user_created` crea automáticamente la fila correspondiente en `profiles` — equivalente al paso de la tesina de "crear un registro en la tabla de usuarios", pero sin código de aplicación de por medio.
+- La restricción de dominio institucional se implementa con un *Auth Hook* de Supabase (`restrict_signup_to_itam_domain`, en `0002_functions.sql`, cuerpo actualizado en `0004_instituciones.sql`) que rechaza cualquier registro cuyo dominio de correo no esté dado de alta en la tabla `institutions`, antes de que la cuenta se cree. Se conecta desde el panel de Supabase en *Authentication → Hooks → Before User Created*. ([Documentación oficial](https://supabase.com/docs/guides/auth/auth-hooks/before-user-created-hook))
+- Cuando Supabase Auth confirma el registro, el trigger `on_auth_user_created` crea automáticamente la fila correspondiente en `profiles` — equivalente al paso de la tesina de "crear un registro en la tabla de usuarios", pero sin código de aplicación de por medio. Desde `0004_instituciones.sql` también resuelve `institution_id` a partir del dominio del correo.
+- **Actualización 2026-08-17 — multi-institución:** el pitch de comercialización del producto es institucional, no exclusivo del ITAM (ver `PROGRESS.md`, sección "Modelo de negocio / pitch"). `0004_instituciones.sql` generaliza el dominio hardcodeado `@itam.mx` a una tabla `institutions` (nombre + dominio de correo), con el ITAM como primer registro/piloto. `find_candidate_offers` ahora también filtra por `institution_id` igual entre ambas ofertas — sin esto, usuarios de dos empresas cliente distintas se emparejarían entre sí, lo cual no tiene sentido para el producto.
 
 ---
 
@@ -115,8 +116,8 @@ Refleja el flujo de la tesina (mostrar candidatos → elegir uno → borrar las 
 
 1. Se calculan candidatos con `find_candidate_offers` + Distance Matrix y se guardan en `trip_matches`.
 2. El pasajero elige uno de sus candidatos → `trip_matches.passenger_confirmed = true`.
-3. El conductor ve los candidatos donde ya hay un pasajero confirmado y elige uno → la aplicación crea la fila en `confirmed_trips` (con el evento de Google Calendar ya creado) y **borra** el resto de `trip_offers`/`trip_matches` relacionados con ambos usuarios para ese viaje — mismo comportamiento que la tesina ("El sistema deberá borrar todos los registros de las reservas de cada usuario"), ahora con `on delete cascade` ayudando a limpiar automáticamente los `trip_matches` huérfanos.
-4. `confirmed_trips` sirve tanto para mostrar "los viajes de mañana" como para el historial — reemplaza la tabla `Viajes` de la tesina.
+3. El conductor ve los candidatos donde ya hay un pasajero confirmado y elige uno → la aplicación crea la fila en `confirmed_trips` (con el evento de Google Calendar ya creado) y marca ambas `trip_offers` con `status = 'confirmado'` — equivalente en efecto a lo que pedía la tesina ("El sistema deberá borrar todos los registros de las reservas de cada usuario": las ofertas dejan de ser candidatas para cualquiera), pero sin borrar filas. **Actualización 2026-08-17:** el diseño original de este documento asumía que se podían *borrar* `trip_offers`/`trip_matches` con `on delete cascade`, pero `confirmed_trips.match_id` referencia `trip_matches` sin cascada — a propósito, para conservar el vínculo histórico — así que ese `trip_matches` es, por diseño, imposible de borrar una vez confirmado. Intentarlo revienta por llave foránea (bug real que encontró la suite de Playwright, ver `PROGRESS.md`). La solución fue usar el valor `'confirmado'` que ya existía en el enum `trip_offer_status` sin usarse.
+4. `confirmed_trips` sirve tanto para mostrar "los viajes de mañana" como para el historial — reemplaza la tabla `Viajes` de la tesina. Ambas pantallas embeben `trip_matches` (vía `confirmed_trips.match_id`, que sigue existiendo) para reconstruir una estimación de precio/ganancia — ver sección 9.
 
 ---
 
@@ -142,3 +143,18 @@ supabase db push
 ```
 
 Esto aplica `0001_init_schema.sql` y `0002_functions.sql` en orden. El *Auth Hook* de dominio institucional se conecta aparte, desde el panel (no se activa solo con la migración) — ver sección 4.
+
+---
+
+## 9. Precio y ganancia estimada
+
+El diferenciador competitivo del producto frente a Uber/Didi es el modelo de *micro-earning*: el conductor gana un ingreso marginal por un trayecto que de todos modos iba a hacer (ir al trabajo/la universidad), así que el precio al pasajero puede ser mucho más bajo que un viaje por app tradicional (ver `PROGRESS.md`, sección "Modelo de negocio / pitch").
+
+Para la demo no hay cobro real todavía (eso implica integrar un procesador de pagos, p. ej. Stripe — pendiente de Fase 4/5+). En vez de eso, `lib/pricing.ts` calcula una **estimación** de precio/ganancia a partir de la misma distancia en línea recta que ya se usa para estimar la duración del trayecto compartido (`VELOCIDAD_PROMEDIO_KMH`, ver sección 3) — no depende de ninguna tabla ni columna nueva:
+
+```
+precio_pasajero = tarifa_base + tarifa_por_km * distancia_km
+ganancia_conductor = precio_pasajero * (1 - comisión_plataforma)
+```
+
+Se muestra en `/consultar` (candidatos), `/manana` (viajes confirmados de mañana) y `/historial` (viajes pasados) — las dos últimas reconstruyen la distancia desde `trip_matches.estimated_duration_minutes`, embebido vía `confirmed_trips.match_id`.

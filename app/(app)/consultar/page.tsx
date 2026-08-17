@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/ca
 import { ElegirBoton } from "@/components/elegir-boton";
 import { formatearFechaHoraCDMX } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
+import { formatearMXN } from "@/lib/pricing";
 
 export default async function ConsultarPage() {
   const { error, candidatos } = await obtenerCandidatos();
@@ -33,8 +34,8 @@ export default async function ConsultarPage() {
                 Reservar
               </a>{" "}
               y vuelve a esta pantalla — los candidatos se recalculan cada vez que la visitas. La
-              duración mostrada es una estimación temporal (velocidad promedio, no tráfico real);
-              se conectará Google Distance Matrix en Fase 4.
+              duración y el precio mostrados son una estimación (velocidad promedio, no tráfico
+              real ni cobro real todavía); se conectará Google Distance Matrix en Fase 4.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -52,6 +53,11 @@ export default async function ConsultarPage() {
                     {formatearFechaHoraCDMX(candidato.scheduledTime)} · ~
                     {candidato.estimatedDurationMinutes} min de trayecto compartido (estimado)
                   </CardDescription>
+                  <p className="text-sm font-medium text-emerald-700">
+                    {candidato.miRol === "conductor"
+                      ? `Vas a ganar ~${formatearMXN(candidato.gananciaConductorMXN)}`
+                      : `Vas a pagar ~${formatearMXN(candidato.precioPasajeroMXN)}`}
+                  </p>
                   {candidato.passengerConfirmed && (
                     <p className="text-xs text-muted-foreground">
                       {candidato.miRol === "pasajero"

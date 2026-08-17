@@ -42,7 +42,7 @@ export default function LoginPage() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Iniciar sesión</CardTitle>
-        <CardDescription>Usa tu correo institucional @itam.mx</CardDescription>
+        <CardDescription>Usa tu correo institucional</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
@@ -51,7 +51,7 @@ export default function LoginPage() {
             <Input
               id="email"
               type="email"
-              placeholder="tuusuario@itam.mx"
+              placeholder="tuusuario@tuinstitucion.mx"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
