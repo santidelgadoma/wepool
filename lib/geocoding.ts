@@ -11,7 +11,7 @@ export class GeocodingError extends Error {}
 
 export async function geocodificarDireccion(
   direccion: string
-): Promise<{ lat: number; lng: number }> {
+): Promise<{ lat: number; lng: number; displayName: string }> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("q", direccion);
   url.searchParams.set("format", "jsonv2");
@@ -39,7 +39,11 @@ export async function geocodificarDireccion(
     );
   }
 
-  const resultados = (await respuesta.json()) as Array<{ lat: string; lon: string }>;
+  const resultados = (await respuesta.json()) as Array<{
+    lat: string;
+    lon: string;
+    display_name?: string;
+  }>;
   const primero = resultados[0];
 
   if (!primero) {
@@ -48,5 +52,37 @@ export async function geocodificarDireccion(
     );
   }
 
-  return { lat: Number(primero.lat), lng: Number(primero.lon) };
+  return {
+    lat: Number(primero.lat),
+    lng: Number(primero.lon),
+    // display_name es la versión normalizada de Nominatim (calle, colonia,
+    // alcaldía, ciudad...) — se usa para que el usuario confirme en
+    // /reserva que se entendió bien la dirección antes de publicar (ver
+    // lib/actions/reserva.ts::previsualizarDireccion). Si por lo que sea no
+    // viene en la respuesta, se regresa la dirección tal como se escribió.
+    displayName: primero.display_name ?? direccion,
+  };
+}
+
+// Distancia en línea recta entre dos puntos (fórmula de Haversine), en
+// kilómetros. Se usa para el estimado de precio/ganancia en /reserva
+// (distancia de la dirección escrita al campus de la institución, ver
+// migración 0005_campus_institucion.sql) — es una aproximación a propósito:
+// el precio final depende de con quién se empareje y de la ruta real, no de
+// la distancia recta a un punto fijo.
+export function distanciaHaversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const RADIO_TIERRA_KM = 6371;
+  const aRadianes = (grados: number) => (grados * Math.PI) / 180;
+  const dLat = aRadianes(lat2 - lat1);
+  const dLng = aRadianes(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aRadianes(lat1)) * Math.cos(aRadianes(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return RADIO_TIERRA_KM * c;
 }

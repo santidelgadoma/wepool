@@ -16,29 +16,6 @@ export async function login(page: Page, email: string) {
   await expect(page).toHaveURL(/\/home/, { timeout: 30_000 });
 }
 
-// Réplica intencional del algoritmo de lib/datetime.ts::fechaDeMananaCDMX —
-// se duplica (en vez de importar la app desde e2e/) para que el test no
-// dependa de que Playwright resuelva el alias "@/*" del proyecto, y para que
-// quede claro que esta fecha debe coincidir exactamente con la que valida el
-// servidor. México no observa horario de verano desde 2022, así que el
-// offset fijo de -6 es seguro aquí igual que en la app.
-function fechaDeMananaCDMX(): string {
-  const partes = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Mexico_City",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const valor = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value ?? "0");
-  const hoyUTC = new Date(Date.UTC(valor("year"), valor("month") - 1, valor("day")));
-  hoyUTC.setUTCDate(hoyUTC.getUTCDate() + 1);
-  return hoyUTC.toISOString().slice(0, 10);
-}
-
-export function horaDeMananaParaInput(hora = "08:00"): string {
-  return `${fechaDeMananaCDMX()}T${hora}`;
-}
-
 export type DatosViaje = {
   role: "conductor" | "pasajero";
   direction: "ida" | "regreso";
@@ -60,16 +37,23 @@ export async function publicarViaje(page: Page, datos: DatosViaje) {
     .click();
 
   await page.locator("#homeAddress").fill(datos.homeAddress);
-  await page.locator("#scheduledTime").fill(horaDeMananaParaInput(datos.hora));
+  // #scheduledTime ahora es <input type="time"> (antes era datetime-local
+  // completo) — la fecha siempre es "mañana" y ya no se pide en el
+  // formulario, el servidor la arma solo (ver lib/actions/reserva.ts). Solo
+  // se llena la hora.
+  await page.locator("#scheduledTime").fill(datos.hora ?? "08:00");
 
   if (datos.role === "conductor") {
     await page.locator('input[name="newVehiclePlate"]').fill(datos.vehiculo?.placas ?? "E2E-001");
     await page
       .locator('input[name="newVehicleDescription"]')
       .fill(datos.vehiculo?.descripcion ?? "Auto de prueba E2E");
+    // El radio plano de "¿usas vías de cuota?" se volvió un toggle de
+    // botones (mismo estilo que rol/dirección) — se elige por texto
+    // accesible en vez de `.check()` sobre un input.
     await page
-      .locator(`input[name="usesTollRoads"][value="${datos.usaCuota ? "true" : "false"}"]`)
-      .check();
+      .getByRole("button", { name: datos.usaCuota ? "Sí" : "No", exact: true })
+      .click();
     if (datos.direction === "regreso") {
       await page.locator("#meetingPoint").fill(datos.meetingPoint ?? "Estacionamiento principal");
     }

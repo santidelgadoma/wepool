@@ -2,11 +2,26 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Car, User, Building2, Home as HomeIcon, CheckCircle2 } from "lucide-react";
-import { crearOferta, type CrearOfertaState } from "@/lib/actions/reserva";
+import {
+  Car,
+  User,
+  Building2,
+  Home as HomeIcon,
+  CheckCircle2,
+  XCircle,
+  Wallet,
+} from "lucide-react";
+import {
+  crearOferta,
+  previsualizarDireccion,
+  type CrearOfertaState,
+  type PreviewDireccion,
+} from "@/lib/actions/reserva";
+import { formatearMXN } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardHeader,
@@ -18,19 +33,59 @@ import {
 import { fechaDeMananaCDMX } from "@/lib/datetime";
 
 type Vehiculo = { id: string; plate: string; description: string };
+type Campus = { lat: number; lng: number } | null;
 
 const ESTADO_INICIAL: CrearOfertaState = {};
 const SELECT_CLASSNAME =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+// Hora de salida más común entre la comunidad ITAM (ver scripts/seed.ts,
+// donde la mayoría de los viajes de ida son 07:30-08:10) — arrancar el campo
+// aquí en vez de vacío ahorra un scroll/tecleo en el caso más común, sin
+// impedir cambiarla.
+const HORA_POR_DEFECTO = "07:30";
 
-export function ReservaForm({ vehiculos }: { vehiculos: Vehiculo[] }) {
+export function ReservaForm({
+  vehiculos,
+  campus,
+}: {
+  vehiculos: Vehiculo[];
+  campus: Campus;
+}) {
   const [state, formAction] = useActionState(crearOferta, ESTADO_INICIAL);
   const [role, setRole] = useState<"pasajero" | "conductor">("pasajero");
   const [direction, setDirection] = useState<"ida" | "regreso">("ida");
   const [vehicleChoice, setVehicleChoice] = useState<string>(vehiculos[0]?.id ?? "nuevo");
+  const [tollRoads, setTollRoads] = useState<"true" | "false" | undefined>(undefined);
+
+  const [homeAddress, setHomeAddress] = useState("");
+  const [preview, setPreview] = useState<PreviewDireccion | null>(null);
+  const [previewedFor, setPreviewedFor] = useState<string | null>(null);
+  const [checkingAddress, setCheckingAddress] = useState(false);
 
   const manana = fechaDeMananaCDMX();
   const errores = state.fieldErrors ?? {};
+
+  const direccionLimpia = homeAddress.trim();
+  const addressStatus: "idle" | "checking" | "ok" | "error" = checkingAddress
+    ? "checking"
+    : preview && previewedFor === direccionLimpia
+      ? preview.ok
+        ? "ok"
+        : "error"
+      : "idle";
+
+  async function handleAddressBlur() {
+    const direccion = homeAddress.trim();
+    if (direccion.length < 5 || direccion === previewedFor) return;
+    setCheckingAddress(true);
+    try {
+      const resultado = await previsualizarDireccion(direccion, campus);
+      setPreview(resultado);
+      setPreviewedFor(direccion);
+    } finally {
+      setCheckingAddress(false);
+    }
+  }
 
   return (
     <Card className="max-w-xl">
@@ -98,20 +153,60 @@ export function ReservaForm({ vehiculos }: { vehiculos: Vehiculo[] }) {
               name="homeAddress"
               placeholder="Calle, colonia, alcaldía o municipio, ciudad"
               required
+              value={homeAddress}
+              onChange={(e) => setHomeAddress(e.target.value)}
+              onBlur={handleAddressBlur}
             />
             {errores.homeAddress && (
               <p className="text-sm text-destructive">{errores.homeAddress}</p>
             )}
+
+            {addressStatus === "checking" && (
+              <p className="text-xs text-muted-foreground">Verificando dirección…</p>
+            )}
+
+            {addressStatus === "error" && preview && !preview.ok && (
+              <p className="flex items-start gap-1.5 text-xs text-destructive">
+                <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {preview.error}
+              </p>
+            )}
+
+            {addressStatus === "ok" && preview?.ok && (
+              <div className="space-y-2">
+                <div className="flex items-start gap-1.5 rounded-md border border-emerald-600/20 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-800">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{preview.displayName}</span>
+                </div>
+                {preview.precioPasajeroMXN !== undefined &&
+                  preview.gananciaConductorMXN !== undefined && (
+                    <div className="space-y-1">
+                      <Badge variant="success" className="w-fit">
+                        <Wallet className="h-3 w-3" />
+                        {role === "conductor"
+                          ? `Ganarías ~${formatearMXN(preview.gananciaConductorMXN)}`
+                          : `Pagarías ~${formatearMXN(preview.precioPasajeroMXN)}`}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground">
+                        Estimado según la distancia a tu institución — el precio final depende
+                        de con quién te empareje.
+                      </p>
+                    </div>
+                  )}
+                <input type="hidden" name="previewLat" value={preview.lat} />
+                <input type="hidden" name="previewLng" value={preview.lng} />
+                <input type="hidden" name="previewFor" value={previewedFor ?? ""} />
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="scheduledTime">Hora del viaje (mañana)</Label>
+            <Label htmlFor="scheduledTime">Hora del viaje</Label>
             <Input
               id="scheduledTime"
               name="scheduledTime"
-              type="datetime-local"
-              min={`${manana}T00:00`}
-              max={`${manana}T23:59`}
+              type="time"
+              defaultValue={HORA_POR_DEFECTO}
               required
             />
             {errores.scheduledTime && (
@@ -156,16 +251,20 @@ export function ReservaForm({ vehiculos }: { vehiculos: Vehiculo[] }) {
 
               <div className="space-y-2">
                 <Label>¿Usas vías de cuota?</Label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="radio" name="usesTollRoads" value="true" required />
-                    Sí
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="radio" name="usesTollRoads" value="false" required />
-                    No
-                  </label>
+                <div className="flex gap-2">
+                  {(["true", "false"] as const).map((valor) => (
+                    <Button
+                      key={valor}
+                      type="button"
+                      size="sm"
+                      variant={tollRoads === valor ? "default" : "outline"}
+                      onClick={() => setTollRoads(valor)}
+                    >
+                      {valor === "true" ? "Sí" : "No"}
+                    </Button>
+                  ))}
                 </div>
+                {tollRoads && <input type="hidden" name="usesTollRoads" value={tollRoads} />}
                 {errores.usesTollRoads && (
                   <p className="text-sm text-destructive">{errores.usesTollRoads}</p>
                 )}
