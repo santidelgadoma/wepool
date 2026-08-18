@@ -1,5 +1,7 @@
+import { Car, User, MapPin, Clock, Flag, Wallet, Sunrise } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { formatearFechaHoraCDMX, rangoUTCDeManana } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
 import {
@@ -39,6 +41,9 @@ export default async function MananaPage() {
       {!viajes || viajes.length === 0 ? (
         <Card>
           <CardHeader>
+            <div className="mb-1 flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <Sunrise className="h-5 w-5" />
+            </div>
             <CardTitle>Todavía no tienes viajes confirmados para mañana</CardTitle>
             <CardDescription>
               Publica o reserva un viaje desde{" "}
@@ -62,22 +67,42 @@ export default async function MananaPage() {
 
             return (
               <Card key={viaje.id}>
-                <CardHeader>
-                  <CardTitle>
-                    {esConductor ? "Conductor" : "Pasajero"} ·{" "}
-                    {ETIQUETA_DIRECCION[viaje.direction as "ida" | "regreso"]}
-                  </CardTitle>
-                  <CardDescription>
-                    {viaje.home_address} — {formatearFechaHoraCDMX(viaje.scheduled_time)}
-                    {viaje.meeting_point ? ` · Punto de encuentro: ${viaje.meeting_point}` : ""}
+                <CardHeader className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="flex items-center gap-1.5 text-base">
+                      {esConductor ? (
+                        <Car className="h-4 w-4 text-primary" />
+                      ) : (
+                        <User className="h-4 w-4 text-primary" />
+                      )}
+                      {esConductor ? "Conductor" : "Pasajero"} ·{" "}
+                      {ETIQUETA_DIRECCION[viaje.direction as "ida" | "regreso"]}
+                    </CardTitle>
+                    {precio && (
+                      <Badge variant="success">
+                        <Wallet className="h-3 w-3" />
+                        {esConductor
+                          ? `Ganas ~${formatearMXN(precio.gananciaConductorMXN)}`
+                          : `Pagas ~${formatearMXN(precio.precioPasajeroMXN)}`}
+                      </Badge>
+                    )}
+                  </div>
+                  <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {viaje.home_address}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      {formatearFechaHoraCDMX(viaje.scheduled_time)}
+                    </span>
+                    {viaje.meeting_point && (
+                      <span className="inline-flex items-center gap-1">
+                        <Flag className="h-3.5 w-3.5" />
+                        {viaje.meeting_point}
+                      </span>
+                    )}
                   </CardDescription>
-                  {precio && (
-                    <p className="text-sm font-medium text-emerald-700">
-                      {esConductor
-                        ? `Vas a ganar ~${formatearMXN(precio.gananciaConductorMXN)}`
-                        : `Vas a pagar ~${formatearMXN(precio.precioPasajeroMXN)}`}
-                    </p>
-                  )}
                 </CardHeader>
               </Card>
             );

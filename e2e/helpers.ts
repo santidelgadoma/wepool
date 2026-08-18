@@ -6,7 +6,14 @@ export async function login(page: Page, email: string) {
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/home/, { timeout: 15_000 });
+  // 30s en vez de 15s: en modo `next dev` la primera visita a una ruta la
+  // compila sobre la marcha, y /home + su layout ((app)/layout.tsx, que
+  // ahora hace una consulta extra a `profiles` para el nombre de la
+  // institución) pueden tardar más que 15s en compilar la primerísima vez
+  // después de editar código — no es que el login realmente falle, es que
+  // el timeout se quedaba corto. Mismo margen generoso que ya se usa abajo
+  // para "¡Viaje publicado!".
+  await expect(page).toHaveURL(/\/home/, { timeout: 30_000 });
 }
 
 // Réplica intencional del algoritmo de lib/datetime.ts::fechaDeMananaCDMX —

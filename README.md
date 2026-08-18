@@ -1,6 +1,10 @@
-# Carpool ITAM — app
+# WEPOOL — app
 
-MVP de una app de carpool para la comunidad del ITAM. Next.js 15 (App Router) + TypeScript + Tailwind + Supabase. Ver el porqué de cada decisión en [`docs/arquitectura_mvp.md`](./docs/arquitectura_mvp.md) y [`docs/esquema_base_datos.md`](./docs/esquema_base_datos.md). El estado del desarrollo se lleva en [`PROGRESS.md`](./PROGRESS.md).
+MVP de WEPOOL, una app de carpool institucional — el ITAM es el primer cliente/piloto, pero el producto está pensado para cualquier empresa o institución (ver [`docs/producto.md`](./docs/producto.md)). Next.js 15 (App Router) + TypeScript + Tailwind + Supabase. Ver el porqué de cada decisión técnica en [`docs/arquitectura_mvp.md`](./docs/arquitectura_mvp.md) y [`docs/esquema_base_datos.md`](./docs/esquema_base_datos.md), el pitch/modelo de negocio en [`docs/producto.md`](./docs/producto.md), y el guion para una demo en vivo en [`docs/guion_demo.md`](./docs/guion_demo.md). El estado del desarrollo se lleva en [`PROGRESS.md`](./PROGRESS.md).
+
+El logo y la paleta de colores (azul de marca `#5170ff`) viven en `public/logo-mascot.png` (ícono) y `public/logo-lockup.png` (ícono + wordmark); el favicon (`app/icon.png`, `app/apple-icon.png`) sale del mismo archivo. Los tokens de color están en `app/globals.css` (`--brand`, `--primary`, etc.) — cambiar la marca es cambiar esos dos lugares, no cada pantalla.
+
+La app es **instalable** (PWA) — desde Chrome/Edge de escritorio aparece un ícono de "Instalar" en la barra de direcciones, en Android Chrome ofrece "Agregar a la pantalla de inicio", y en iOS Safari es manual (compartir → "Agregar a inicio"). Ver `app/manifest.ts`, `public/sw.js`, y la decisión de por qué PWA y no una app nativa en `docs/producto.md` sección 12.
 
 ## Cómo arrancarlo
 
@@ -48,6 +52,7 @@ app/
   (app)/consultar/       → /consultar (emparejamiento y confirmación de viaje)
   (app)/historial/       → /historial (viajes ya confirmados)
   (app)/manana/          → /manana (viajes confirmados para el día siguiente)
+  manifest.ts             → manifest de la PWA (nombre, iconos, colores) — Next.js lo sirve solo en /manifest.webmanifest
 lib/
   supabase/client.ts     → cliente para Client Components
   supabase/server.ts     → cliente para Server Components/Actions (respeta RLS)
@@ -56,9 +61,17 @@ lib/
   geocoding.ts            → geocoding de direcciones (Nominatim, temporal — ver PROGRESS.md Fase 4)
   datetime.ts             → regla "solo para mañana" y conversiones de zona horaria (CDMX)
 components/ui/            → Button, Input, Label, Card (estilo shadcn/ui, escritos a mano)
+components/register-sw.tsx → registra el service worker de la PWA (public/sw.js)
+public/sw.js               → service worker de la PWA — solo cachea el app shell estático, nunca datos de Supabase
+public/icons/              → iconos de instalación (192/512/maskable)
 supabase/migrations/       → esquema de base de datos (ver docs/esquema_base_datos.md)
 e2e/                       → tests end-to-end (Playwright), ver sección "Tests" abajo
 scripts/seed.ts             → datos de ejemplo para la demo, ver sección "Datos de ejemplo" abajo
+docs/
+  arquitectura_mvp.md      → por qué cada decisión técnica (Next.js + Supabase, PostGIS, etc.)
+  esquema_base_datos.md    → esquema de base de datos en detalle
+  producto.md              → pitch, modelo de negocio, mercado, roadmap
+  guion_demo.md            → narrativa pantalla por pantalla para una demo en vivo
 ```
 
 ## Lo que ya funciona

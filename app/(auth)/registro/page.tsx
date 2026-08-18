@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { MailCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,9 @@ export default function RegistroPage() {
     return (
       <Card className="w-full max-w-sm">
         <CardHeader>
+          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <MailCheck className="h-5 w-5" />
+          </div>
           <CardTitle>Revisa tu correo</CardTitle>
           <CardDescription>
             Mandamos un link de confirmación a <strong>{email}</strong>. Ábrelo desde el
@@ -68,7 +72,7 @@ export default function RegistroPage() {
         <CardTitle>Crear cuenta</CardTitle>
         <CardDescription>
           Solo con tu correo institucional — verificamos que tu empresa u organización ya
-          esté dada de alta en Carpool.
+          esté dada de alta en WEPOOL.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSignUp}>

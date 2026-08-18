@@ -24,11 +24,24 @@ test("conductor y pasajero se emparejan y confirman un viaje de ida", async ({ b
     await login(conductorPage, CONDUCTOR.email);
     await login(pasajeroPage, PASAJERO.email);
 
+    // Hora deliberadamente lejos de los horarios de scripts/seed.ts (07:30,
+    // 08:00, 08:10 de ida) — find_candidate_offers empareja dentro de una
+    // ventana de 30 min, así que si este test corre con datos de seed ya
+    // cargados (el flujo normal: `npm run seed` el día antes de la demo, y
+    // luego `npm run test:e2e` para confirmar que no se rompió nada), los
+    // conductores/pasajeros de ejemplo del ITAM (p.ej. Valentina, Emilio)
+    // podían colarse como candidatos junto con la contraparte real de este
+    // test y el `.first()` de abajo elegía a quien fuera primero por
+    // duración estimada, no necesariamente al otro usuario de prueba — el
+    // test entonces confirmaba con un conductor/pasajero equivocado y el
+    // paso 2 se quedaba esperando un botón que nunca aparecía. 10:30 queda a
+    // más de 2 horas de cualquier horario de ida del seed, fuera de la
+    // ventana de 30 min por buen margen.
     await publicarViaje(conductorPage, {
       role: "conductor",
       direction: "ida",
       homeAddress: "Av. Insurgentes Sur 3000, Ciudad de México",
-      hora: "08:00",
+      hora: "10:30",
       usaCuota: false,
     });
 
@@ -36,7 +49,7 @@ test("conductor y pasajero se emparejan y confirman un viaje de ida", async ({ b
       role: "pasajero",
       direction: "ida",
       homeAddress: "Av. Revolución 1500, Ciudad de México",
-      hora: "08:00",
+      hora: "10:30",
     });
 
     // Paso 1 del emparejamiento (docs/esquema_base_datos.md sección 5): el

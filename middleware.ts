@@ -7,6 +7,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // sw.js y manifest.webmanifest se agregan aquí (PWA, ver app/manifest.ts
+    // y public/sw.js): se piden en cada carga de la app, incluso sin sesión,
+    // así que no tiene sentido pasarlos por Supabase en cada request.
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

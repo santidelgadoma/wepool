@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { Car, User, Building2, Home as HomeIcon, CheckCircle2 } from "lucide-react";
 import { crearOferta, type CrearOfertaState } from "@/lib/actions/reserva";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,11 @@ export function ReservaForm({ vehiculos }: { vehiculos: Vehiculo[] }) {
                   variant={role === opcion ? "default" : "outline"}
                   onClick={() => setRole(opcion)}
                 >
+                  {opcion === "pasajero" ? (
+                    <User className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Car className="mr-2 h-4 w-4" />
+                  )}
                   {opcion === "pasajero" ? "Pasajero" : "Conductor"}
                 </Button>
               ))}
@@ -66,6 +72,11 @@ export function ReservaForm({ vehiculos }: { vehiculos: Vehiculo[] }) {
                   variant={direction === opcion ? "default" : "outline"}
                   onClick={() => setDirection(opcion)}
                 >
+                  {opcion === "ida" ? (
+                    <Building2 className="mr-2 h-4 w-4" />
+                  ) : (
+                    <HomeIcon className="mr-2 h-4 w-4" />
+                  )}
                   {opcion === "ida" ? "Ida al ITAM" : "Regreso del ITAM"}
                 </Button>
               ))}
@@ -180,8 +191,9 @@ export function ReservaForm({ vehiculos }: { vehiculos: Vehiculo[] }) {
           {state.error && <p className="text-sm text-destructive">{state.error}</p>}
 
           {state.success && (
-            <div className="rounded-md border border-green-600/30 bg-green-50 px-3 py-2">
-              <p className="text-sm text-green-700">
+            <div className="flex items-start gap-2 rounded-md border border-emerald-600/30 bg-emerald-50 px-3 py-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <p className="text-sm text-emerald-700">
                 ¡Viaje publicado! Puedes verlo en{" "}
                 <a className="underline" href="/cancelar">
                   Cancelar
