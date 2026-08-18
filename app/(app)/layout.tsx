@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { nombreInstitucion } from "@/lib/institucion";
 import { LogoutButton } from "@/components/logout-button";
 import { AppNav } from "@/components/app-nav";
 
@@ -29,9 +30,7 @@ export default async function AppLayout({
     .eq("id", user.id)
     .single();
 
-  const institucion = Array.isArray(profile?.institutions)
-    ? profile?.institutions[0]?.name
-    : (profile?.institutions as { name: string } | null)?.name;
+  const institucion = nombreInstitucion(profile?.institutions);
 
   return (
     <div className="flex min-h-screen flex-col">

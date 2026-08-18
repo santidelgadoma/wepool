@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PlusCircle, Search, Sunrise, History, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { nombreInstitucion } from "@/lib/institucion";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const ACCESOS_RAPIDOS = [
@@ -53,10 +54,9 @@ export default async function HomePage() {
     .single();
 
   // institutions viene como objeto o arreglo según la versión del cliente de
-  // Supabase que resuelva la relación embebida — se normaliza aquí.
-  const institucion = Array.isArray(profile?.institutions)
-    ? profile?.institutions[0]?.name
-    : (profile?.institutions as { name: string } | null)?.name;
+  // Supabase que resuelva la relación embebida — se normaliza en lib/institucion.ts
+  // (antes era un cast en línea que compilaba mal con `next build`, ver PROGRESS.md).
+  const institucion = nombreInstitucion(profile?.institutions);
 
   return (
     <div className="space-y-6">
