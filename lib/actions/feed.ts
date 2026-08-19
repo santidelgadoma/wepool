@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { estimarPrecioViaje, VELOCIDAD_PROMEDIO_KMH } from "@/lib/pricing";
+import { estimarPrecioViaje, duracionDesdeMetros } from "@/lib/pricing";
 import { rangoUTCDeManana } from "@/lib/datetime";
+import { calcularMatrizRutas, calcularRutaReal } from "@/lib/rutas";
 
 const RADIO_KM = 15;
 const LIMITE_FEED = 30;
@@ -16,6 +17,7 @@ export type FeedCandidato = {
   vehicleDescription: string | null;
   driverFirstName: string;
   distanceKm: number;
+  duracionMinutos: number | null;
   precioPasajeroMXN: number;
 };
 
@@ -25,6 +27,8 @@ type FilaFeedCruda = {
   scheduled_time: string;
   driver_full_name: string | null;
   vehicle_description: string | null;
+  home_lat: number;
+  home_lng: number;
   distance_meters: number;
 };
 
@@ -77,8 +81,23 @@ export async function obtenerFeed(
     return { error: `No se pudo cargar el feed: ${error.message}`, candidatos: [] };
   }
 
-  const candidatos: FeedCandidato[] = ((crudos ?? []) as FilaFeedCruda[]).map((fila) => {
-    const distanceKm = fila.distance_meters / 1000;
+  const filas = (crudos ?? []) as FilaFeedCruda[];
+
+  // Una sola llamada a Google Routes API para todo el feed (1 origen — la
+  // ubicación guardada — × N conductores ya prefiltrados geoespacialmente
+  // por find_driver_offers_near) en vez de una por tarjeta. `rutas[i]` es
+  // `null` si Google no está configurado, no respondió, o no encontró ruta
+  // en auto para ese conductor en particular; esa tarjeta cae a la
+  // distancia en línea recta que la función SQL ya traía (ver
+  // lib/rutas.ts).
+  const rutas = await calcularMatrizRutas(
+    { lat: ubicacion.lat, lng: ubicacion.lng },
+    filas.map((f) => ({ lat: f.home_lat, lng: f.home_lng }))
+  );
+
+  const candidatos: FeedCandidato[] = filas.map((fila, i) => {
+    const ruta = rutas[i];
+    const distanceKm = ruta ? ruta.distanciaKm : fila.distance_meters / 1000;
     const { precioPasajeroMXN } = estimarPrecioViaje(distanceKm);
     return {
       offerId: fila.id,
@@ -87,6 +106,7 @@ export async function obtenerFeed(
       vehicleDescription: fila.vehicle_description,
       driverFirstName: fila.driver_full_name?.trim().split(/\s+/)[0] || "Conductor",
       distanceKm,
+      duracionMinutos: ruta ? ruta.duracionMinutos : null,
       precioPasajeroMXN,
     };
   });
@@ -143,7 +163,7 @@ async function unirmeAViajeInterno(
   const admin = createAdminClient();
   const { data: ofertaConductor } = await admin
     .from("trip_offers")
-    .select("id, direction, role, status, scheduled_time")
+    .select("id, direction, role, status, scheduled_time, home_lat, home_lng")
     .eq("id", driverOfferId)
     .single();
 
@@ -164,6 +184,8 @@ async function unirmeAViajeInterno(
       vehicle_id: null,
       home_address: ubicacion.address_text,
       home_location: `POINT(${ubicacion.lng} ${ubicacion.lat})`,
+      home_lat: ubicacion.lat,
+      home_lng: ubicacion.lng,
       scheduled_time: ofertaConductor.scheduled_time,
       uses_toll_roads: null,
       meeting_point: null,
@@ -175,15 +197,29 @@ async function unirmeAViajeInterno(
     return { error: `No se pudo unir al viaje: ${errorInsert?.message ?? "error desconocido"}` };
   }
 
-  const { data: distanciaMetros } = await admin.rpc("distance_between_offers", {
-    p_offer_id_1: driverOfferId,
-    p_offer_id_2: ofertaPasajero.id,
-  });
-
-  const duracionEstimada = Math.max(
-    1,
-    Math.round((Number(distanciaMetros ?? 0) / 1000 / VELOCIDAD_PROMEDIO_KMH) * 60)
+  // Ruta real (Google Routes API) para este par específico -- ya se sabe
+  // exactamente con qué conductor se está emparejando, así que es una sola
+  // ruta, no una matriz (ver lib/rutas.ts). Si Google no está configurado,
+  // no respondió, o no encontró ruta en auto, se cae al estimado de línea
+  // recta de siempre (distance_between_offers + duracionDesdeMetros).
+  const ruta = await calcularRutaReal(
+    { lat: ofertaConductor.home_lat, lng: ofertaConductor.home_lng },
+    { lat: ubicacion.lat, lng: ubicacion.lng }
   );
+
+  let duracionEstimada: number;
+  let distanciaKm: number | null;
+  if (ruta) {
+    duracionEstimada = ruta.duracionMinutos;
+    distanciaKm = ruta.distanciaKm;
+  } else {
+    const { data: distanciaMetros } = await admin.rpc("distance_between_offers", {
+      p_offer_id_1: driverOfferId,
+      p_offer_id_2: ofertaPasajero.id,
+    });
+    duracionEstimada = duracionDesdeMetros(Number(distanciaMetros ?? 0));
+    distanciaKm = null;
+  }
 
   // trip_matches no tiene policy de insert para el rol authenticated (solo
   // select/update, ver 0001_init_schema.sql) -- por diseño, solo el
@@ -192,6 +228,7 @@ async function unirmeAViajeInterno(
     driver_offer_id: driverOfferId,
     passenger_offer_id: ofertaPasajero.id,
     estimated_duration_minutes: duracionEstimada,
+    distance_km: distanciaKm,
     passenger_confirmed: true,
   });
 

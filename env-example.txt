@@ -5,9 +5,18 @@
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
-# Google Maps Platform (Geocoding + Distance Matrix).
-# Sin prefijo NEXT_PUBLIC: solo se usa desde el servidor (Route Handlers/Server Actions)
+# Google Maps Platform — Routes API (computeRouteMatrix, ver lib/rutas.ts)
+# para tiempo/distancia REAL de manejo entre dos puntos. NO se usa para
+# geocodificar direcciones (eso lo sigue haciendo Nominatim/OpenStreetMap,
+# gratis, ver lib/geocoding.ts -- no hay necesidad de cambiarlo).
+# Sin prefijo NEXT_PUBLIC: solo se usa desde el servidor (Server Actions)
 # para no exponer la llave en el navegador.
+#
+# Para configurarla: crea un proyecto en Google Cloud Console, habilita
+# específicamente "Routes API" (API Library), vincula una cuenta de
+# facturación (pide tarjeta aunque te quedes dentro del nivel gratuito de
+# 10,000 elementos/mes), y genera una llave restringida solo a "Routes API"
+# (sin restricción de IP -- Vercel no tiene IP fija en el plan gratuito).
 GOOGLE_MAPS_API_KEY=
 
 # Resend (correos de recordatorio; la verificación de registro la maneja Supabase Auth)

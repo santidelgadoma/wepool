@@ -5,8 +5,7 @@ import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { formatearFechaHoraCDMX } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION, ETIQUETA_STATUS_CONFIRMADO } from "@/lib/etiquetas";
 import {
-  duracionDeMatchEmbebido,
-  estimarPrecioDesdeDuracionMinutos,
+  precioDeMatchEmbebido,
   formatearMXN,
   type TripMatchEmbebido,
 } from "@/lib/pricing";
@@ -26,7 +25,7 @@ export default async function HistorialPage() {
   const { data: viajes } = await supabase
     .from("confirmed_trips")
     .select(
-      "id, direction, home_address, scheduled_time, status, driver_id, passenger_id, trip_matches(estimated_duration_minutes)"
+      "id, direction, home_address, scheduled_time, status, driver_id, passenger_id, trip_matches(estimated_duration_minutes, distance_km)"
     )
     .or(`driver_id.eq.${user!.id},passenger_id.eq.${user!.id}`)
     .order("scheduled_time", { ascending: false });
@@ -58,8 +57,7 @@ export default async function HistorialPage() {
         <div className="space-y-3">
           {viajes.map((viaje) => {
             const esConductor = viaje.driver_id === user!.id;
-            const duracion = duracionDeMatchEmbebido(viaje.trip_matches as TripMatchEmbebido);
-            const precio = duracion !== null ? estimarPrecioDesdeDuracionMinutos(duracion) : null;
+            const precio = precioDeMatchEmbebido(viaje.trip_matches as TripMatchEmbebido);
             const status = viaje.status as "programado" | "completado" | "cancelado";
 
             return (

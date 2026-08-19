@@ -5,8 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatearFechaHoraCDMX, rangoUTCDeManana } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
 import {
-  duracionDeMatchEmbebido,
-  estimarPrecioDesdeDuracionMinutos,
+  precioDeMatchEmbebido,
   formatearMXN,
   type TripMatchEmbebido,
 } from "@/lib/pricing";
@@ -22,7 +21,7 @@ export default async function MananaPage() {
   const { data: viajes } = await supabase
     .from("confirmed_trips")
     .select(
-      "id, direction, home_address, scheduled_time, meeting_point, driver_id, passenger_id, trip_matches(estimated_duration_minutes)"
+      "id, direction, home_address, scheduled_time, meeting_point, driver_id, passenger_id, trip_matches(estimated_duration_minutes, distance_km)"
     )
     .or(`driver_id.eq.${user!.id},passenger_id.eq.${user!.id}`)
     .gte("scheduled_time", inicio)
@@ -62,8 +61,7 @@ export default async function MananaPage() {
         <div className="space-y-3">
           {viajes.map((viaje) => {
             const esConductor = viaje.driver_id === user!.id;
-            const duracion = duracionDeMatchEmbebido(viaje.trip_matches as TripMatchEmbebido);
-            const precio = duracion !== null ? estimarPrecioDesdeDuracionMinutos(duracion) : null;
+            const precio = precioDeMatchEmbebido(viaje.trip_matches as TripMatchEmbebido);
 
             return (
               <Card key={viaje.id}>

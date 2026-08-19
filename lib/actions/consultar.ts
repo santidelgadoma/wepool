@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { estimarPrecioViaje, VELOCIDAD_PROMEDIO_KMH } from "@/lib/pricing";
+import { estimarPrecioViaje, VELOCIDAD_PROMEDIO_KMH, duracionDesdeMetros } from "@/lib/pricing";
+import { calcularMatrizRutas } from "@/lib/rutas";
 
 const RADIO_KM = 15;
 const VENTANA_MINUTOS = 30;
@@ -27,6 +28,8 @@ type OfertaPropia = {
   role: "conductor" | "pasajero";
   direction: "ida" | "regreso";
   scheduled_time: string;
+  home_lat: number;
+  home_lng: number;
 };
 
 type OfertaContraparte = {
@@ -59,7 +62,7 @@ export async function obtenerCandidatos(): Promise<{
 
   const { data: misOfertas, error: errorOfertas } = await supabase
     .from("trip_offers")
-    .select("id, role, direction, scheduled_time")
+    .select("id, role, direction, scheduled_time, home_lat, home_lng")
     .eq("user_id", user.id)
     .eq("status", "buscando");
 
@@ -83,18 +86,46 @@ export async function obtenerCandidatos(): Promise<{
       p_limit: LIMITE_CANDIDATOS,
     });
 
-    const candidatos = (candidatosCrudos ?? []) as Array<{ id: string }>;
+    // find_candidate_offers regresa `setof trip_offers` completo (select
+    // o2.*), así que candidato.home_lat/home_lng ya vienen incluidos sin
+    // ninguna consulta extra (ver 0007_rutas_reales.sql).
+    const candidatos = (candidatosCrudos ?? []) as Array<{
+      id: string;
+      home_lat: number;
+      home_lng: number;
+    }>;
 
-    for (const candidato of candidatos) {
-      const { data: distanciaMetros } = await admin.rpc("distance_between_offers", {
-        p_offer_id_1: oferta.id,
-        p_offer_id_2: candidato.id,
-      });
+    if (candidatos.length === 0) continue;
 
-      const duracionEstimada = Math.max(
-        1,
-        Math.round((Number(distanciaMetros ?? 0) / 1000 / VELOCIDAD_PROMEDIO_KMH) * 60)
-      );
+    // Una sola llamada a Google Routes API por oferta propia (1 origen × N
+    // candidatos ya prefiltrados por PostGIS) en vez de una llamada por
+    // candidato — ver lib/rutas.ts. `ruta` es `null` para un candidato si
+    // Google no está configurado, no respondió, o no encontró ruta en auto
+    // para ese par en particular; se cae al estimado de línea recta de
+    // siempre solo para esos casos (no para todos, para no gastar una
+    // llamada extra de más).
+    const rutas = await calcularMatrizRutas(
+      { lat: oferta.home_lat, lng: oferta.home_lng },
+      candidatos.map((c) => ({ lat: c.home_lat, lng: c.home_lng }))
+    );
+
+    for (let i = 0; i < candidatos.length; i++) {
+      const candidato = candidatos[i];
+      const ruta = rutas[i];
+
+      let duracionEstimada: number;
+      let distanciaKm: number | null;
+      if (ruta) {
+        duracionEstimada = ruta.duracionMinutos;
+        distanciaKm = ruta.distanciaKm;
+      } else {
+        const { data: distanciaMetros } = await admin.rpc("distance_between_offers", {
+          p_offer_id_1: oferta.id,
+          p_offer_id_2: candidato.id,
+        });
+        duracionEstimada = duracionDesdeMetros(Number(distanciaMetros ?? 0));
+        distanciaKm = null;
+      }
 
       const esOfertaConductor = oferta.role === "conductor";
       await admin.from("trip_matches").upsert(
@@ -102,6 +133,7 @@ export async function obtenerCandidatos(): Promise<{
           driver_offer_id: esOfertaConductor ? oferta.id : candidato.id,
           passenger_offer_id: esOfertaConductor ? candidato.id : oferta.id,
           estimated_duration_minutes: duracionEstimada,
+          distance_km: distanciaKm,
         },
         { onConflict: "driver_offer_id,passenger_offer_id", ignoreDuplicates: true }
       );
@@ -117,7 +149,9 @@ export async function obtenerCandidatos(): Promise<{
 
   const { data: matches, error: errorMatches } = await admin
     .from("trip_matches")
-    .select("id, driver_offer_id, passenger_offer_id, estimated_duration_minutes, passenger_confirmed")
+    .select(
+      "id, driver_offer_id, passenger_offer_id, estimated_duration_minutes, distance_km, passenger_confirmed"
+    )
     .or(filtroOr);
 
   if (errorMatches || !matches) {
@@ -161,10 +195,14 @@ export async function obtenerCandidatos(): Promise<{
 
     const miRol: "conductor" | "pasajero" = esMiaLaDeConductor ? "conductor" : "pasajero";
 
-    // El precio se deriva de la misma duración estimada que ya se guarda en
-    // trip_matches (que a su vez viene de la distancia real vía PostGIS) —
-    // no hace falta ninguna columna ni tabla nueva. Ver lib/pricing.ts.
-    const distanciaKmEstimada = (m.estimated_duration_minutes / 60) * VELOCIDAD_PROMEDIO_KMH;
+    // El precio se calcula por distancia (lib/pricing.ts::estimarPrecioViaje).
+    // Usa la distancia real de manejo (m.distance_km, de Google Routes API)
+    // cuando está disponible; si no (match creado antes de la integración,
+    // o Google no respondió en su momento), cae a reconstruirla desde la
+    // duración guardada con la velocidad promedio — mismo fallback que
+    // lib/pricing.ts::precioDeMatchEmbebido usa en /manana y /historial.
+    const distanciaKmEstimada =
+      m.distance_km ?? (m.estimated_duration_minutes / 60) * VELOCIDAD_PROMEDIO_KMH;
     const { precioPasajeroMXN, gananciaConductorMXN } = estimarPrecioViaje(distanciaKmEstimada);
 
     resultado.push({

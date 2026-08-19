@@ -168,6 +168,11 @@ export async function crearOferta(
     vehicle_id: datos.role === "conductor" ? vehicleId : null,
     home_address: datos.homeAddress,
     home_location: `POINT(${coordenadas.lng} ${coordenadas.lat})`,
+    // lat/lng planos además de home_location (ver
+    // 0007_rutas_reales.sql) -- lib/rutas.ts los necesita para llamar a
+    // Google Routes API sin tener que decodificar la columna geography.
+    home_lat: coordenadas.lat,
+    home_lng: coordenadas.lng,
     scheduled_time: datetimeLocalCDMXaUTC(scheduledDateTimeLocal).toISOString(),
     uses_toll_roads: datos.role === "conductor" ? datos.usesTollRoads : null,
     meeting_point:

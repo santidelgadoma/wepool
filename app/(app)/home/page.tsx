@@ -171,7 +171,8 @@ export default async function HomePage({
                           </span>
                           <span className="inline-flex items-center gap-1">
                             <MapPin className="h-3.5 w-3.5" />
-                            ~{c.distanceKm.toFixed(1)} km de tu ubicación
+                            ~{c.distanceKm.toFixed(1)} km
+                            {c.duracionMinutos !== null && ` · ~${c.duracionMinutos} min de trayecto`}
                           </span>
                           {c.vehicleDescription && <span>{c.vehicleDescription}</span>}
                         </CardDescription>

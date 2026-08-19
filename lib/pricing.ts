@@ -18,12 +18,13 @@ const TARIFA_POR_KM_MXN = 3.5;
 const COMISION_PLATAFORMA = 0.15;
 const REDONDEO_MXN = 5;
 
-// Velocidad promedio asumida para convertir duración <-> distancia mientras
-// se conecta Google Distance Matrix (Fase 4). Centralizada aquí porque tanto
-// lib/actions/consultar.ts (al calcular la duración desde la distancia real
-// de PostGIS) como esta estimación de precio (al reconstruir la distancia
-// desde la duración ya guardada) necesitan el mismo valor — si cada archivo
-// tuviera su propia constante, podrían desincronizarse.
+// Velocidad promedio asumida para convertir duración <-> distancia cuando
+// NO hay una ruta real de Google disponible (ver lib/rutas.ts — llave sin
+// configurar, cuota, sin conexión, o Google no encontró ruta para ese par).
+// Antes era el único método; desde la integración de Google Routes API es
+// el fallback. Centralizada aquí porque lib/actions/consultar.ts y
+// lib/actions/feed.ts la necesitan igual — si cada archivo tuviera su
+// propia constante, podrían desincronizarse.
 export const VELOCIDAD_PROMEDIO_KMH = 22;
 
 export type EstimacionPrecio = {
@@ -43,10 +44,22 @@ export function estimarPrecioViaje(distanciaKm: number): EstimacionPrecio {
 
 // Para pantallas que ya solo tienen la duración guardada (p.ej. /manana, que
 // lee confirmed_trips -> trip_matches.estimated_duration_minutes) y no
-// vuelven a calcular la distancia real.
+// vuelven a calcular la distancia real. Sigue existiendo como fallback para
+// filas de trip_matches sin distance_km (ver precioDeMatchEmbebido abajo) —
+// creadas antes de la integración de Google Routes API, o donde Google no
+// respondió en su momento.
 export function estimarPrecioDesdeDuracionMinutos(estimatedDurationMinutes: number): EstimacionPrecio {
   const distanciaKm = (estimatedDurationMinutes / 60) * VELOCIDAD_PROMEDIO_KMH;
   return estimarPrecioViaje(distanciaKm);
+}
+
+// Convierte metros de línea recta (PostGIS) a minutos usando la velocidad
+// promedio de arriba — el fallback de duración cuando lib/rutas.ts no pudo
+// calcular una ruta real. Antes esta cuenta estaba repetida en
+// lib/actions/consultar.ts y lib/actions/feed.ts; centralizada aquí para
+// que no se desincronicen.
+export function duracionDesdeMetros(distanciaMetros: number): number {
+  return Math.max(1, Math.round((distanciaMetros / 1000 / VELOCIDAD_PROMEDIO_KMH) * 60));
 }
 
 export function formatearMXN(valor: number): string {
@@ -61,14 +74,33 @@ export function formatearMXN(valor: number): string {
 // trip_matches (objeto único u arreglo de uno, según la versión del cliente
 // que resuelva la relación) — usado en /manana y /historial, que leen
 // confirmed_trips y embeben trip_matches para reconstruir el precio sin
-// duplicar la consulta.
+// duplicar la consulta. `distance_km` puede ser `null` en filas creadas
+// antes de la integración de Google Routes API (0007_rutas_reales.sql) o
+// donde Google no respondió — ver precioDeMatchEmbebido.
 export type TripMatchEmbebido =
-  | { estimated_duration_minutes: number }
-  | { estimated_duration_minutes: number }[]
+  | { estimated_duration_minutes: number; distance_km: number | null }
+  | { estimated_duration_minutes: number; distance_km: number | null }[]
   | null;
 
 export function duracionDeMatchEmbebido(trip_matches: TripMatchEmbebido): number | null {
   if (!trip_matches) return null;
   const match = Array.isArray(trip_matches) ? trip_matches[0] : trip_matches;
   return match?.estimated_duration_minutes ?? null;
+}
+
+// Precio/ganancia a partir de un match embebido — usa la distancia REAL de
+// manejo (`distance_km`, de Google Routes API vía lib/rutas.ts) cuando está
+// disponible, en vez de reconstruirla invirtiendo la duración con la
+// velocidad promedio. Es la función que deberían usar /manana y /historial
+// en vez de encadenar duracionDeMatchEmbebido + estimarPrecioDesdeDuracionMinutos
+// a mano — mezclar duración real con una distancia derivada de una
+// velocidad constante ya no sería consistente.
+export function precioDeMatchEmbebido(trip_matches: TripMatchEmbebido): EstimacionPrecio | null {
+  if (!trip_matches) return null;
+  const match = Array.isArray(trip_matches) ? trip_matches[0] : trip_matches;
+  if (!match) return null;
+  if (match.distance_km != null) {
+    return estimarPrecioViaje(match.distance_km);
+  }
+  return estimarPrecioDesdeDuracionMinutos(match.estimated_duration_minutes);
 }
