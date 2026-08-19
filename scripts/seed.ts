@@ -13,14 +13,21 @@
 //     vivo el algoritmo de emparejamiento y el flujo de confirmación en
 //     /consultar frente al inversionista).
 //
-// REQUIERE que la migración supabase/migrations/0004_instituciones.sql ya
-// esté aplicada en el proyecto real (crea la tabla `institutions`) — el
-// script falla con un mensaje claro si no la encuentra.
+// REQUIERE que las migraciones supabase/migrations/0004_instituciones.sql
+// (tabla `institutions`) y 0007_rutas_reales.sql (columnas home_lat/home_lng
+// en trip_offers, NOT NULL) ya estén aplicadas en el proyecto real — el
+// script falla con un mensaje claro si no encuentra la institución ITAM, o
+// con el error de Postgres de columna NOT NULL si falta 0007.
 //
 // Los viajes son siempre "para mañana" (regla de negocio de la app), así
 // que este script se debe correr el día antes de cada demo, no con
 // semanas de anticipación — la fecha se calcula en el momento en que se
 // corre, igual que lo valida la propia app.
+//
+// Ver también scripts/seed-cuajimalpa.ts: mismo patrón pero mucho más
+// chico, solo 4 conductores sin pasajero emparejado, para poblar el feed
+// del home desde una zona específica (Cuajimalpa) sin tocar estos 8
+// usuarios ni las parejas ya confirmadas de este script.
 //
 // Uso:
 //   npm run seed
@@ -263,6 +270,11 @@ async function crearOferta(
       vehicle_id: oferta.role === "conductor" ? vehicleId : null,
       home_address: oferta.homeAddress,
       home_location: `POINT(${oferta.lng} ${oferta.lat})`,
+      // home_lat/home_lng planos, requeridos desde 0007_rutas_reales.sql
+      // (antes solo existía home_location) -- ver lib/rutas.ts, que los
+      // necesita para llamar a Google Routes API sin decodificar geography.
+      home_lat: oferta.lat,
+      home_lng: oferta.lng,
       scheduled_time: horaMananaISO(oferta.hora),
       uses_toll_roads: oferta.role === "conductor" ? oferta.usesTollRoads ?? false : null,
       meeting_point: oferta.role === "conductor" && oferta.direction === "regreso" ? oferta.meetingPoint : null,
