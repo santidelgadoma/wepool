@@ -17,3 +17,11 @@ RESEND_API_KEY=
 # (cuenta de servicio vs. OAuth de cada usuario). Ver docs/arquitectura_mvp.md.
 # GOOGLE_CALENDAR_CLIENT_ID=
 # GOOGLE_CALENDAR_CLIENT_SECRET=
+
+# Candado temporal de acceso (ver middleware.ts y PROGRESS.md, "Candado
+# temporal de acceso") — mientras el dominio esté public-facing pero el
+# producto todavía en desarrollo. Deja SITE_LOCK_PASSWORD vacía/sin definir
+# para que el sitio funcione normal (sin candado) — solo se activa si tiene
+# un valor. SITE_LOCK_USER es opcional, por default es "wepool".
+SITE_LOCK_USER=
+SITE_LOCK_PASSWORD=

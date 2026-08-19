@@ -19,3 +19,12 @@ export const ETIQUETA_STATUS_CONFIRMADO: Record<
   completado: "Completado",
   cancelado: "Cancelado",
 };
+
+// Set fijo de ubicaciones guardadas para el feed del home (ver
+// supabase/migrations/0006_saved_locations.sql) -- decisión de producto del
+// 2026-08-18, no son configurables por el usuario más allá de la dirección.
+export const ETIQUETA_UBICACION: Record<"casa" | "oficina" | "otro", string> = {
+  casa: "Casa",
+  oficina: "Oficina",
+  otro: "Otro",
+};

@@ -52,7 +52,13 @@ export function ReservaForm({
   campus: Campus;
 }) {
   const [state, formAction] = useActionState(crearOferta, ESTADO_INICIAL);
-  const [role, setRole] = useState<"pasajero" | "conductor">("pasajero");
+  // Antes arrancaba en "pasajero". Ahora que el home tiene su propio flujo
+  // dedicado a pasajeros (el feed, ver app/(app)/home/page.tsx), el único
+  // camino de entrada normal a /reserva es el botón "Voy a manejar" del
+  // home — así que el default correcto es "conductor". El toggle sigue
+  // aquí como respaldo manual (p.ej. reservarse como pasajero sin pasar por
+  // el feed), no se quitó nada, solo cambió qué opción parte seleccionada.
+  const [role, setRole] = useState<"pasajero" | "conductor">("conductor");
   const [direction, setDirection] = useState<"ida" | "regreso">("ida");
   const [vehicleChoice, setVehicleChoice] = useState<string>(vehiculos[0]?.id ?? "nuevo");
   const [tollRoads, setTollRoads] = useState<"true" | "false" | undefined>(undefined);

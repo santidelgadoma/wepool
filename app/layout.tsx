@@ -13,6 +13,17 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "WEPOOL",
   },
+  // Mientras el producto no esté listo para mostrarse públicamente (ver
+  // PROGRESS.md, "Candado temporal de acceso") — junto con app/robots.ts,
+  // esto le pide a los buscadores que no indexen ni seguido enlaces del
+  // sitio. No reemplaza el candado de contraseña (alguien con el link
+  // directo lo puede seguir abriendo), solo evita que aparezca en
+  // resultados de búsqueda mientras tanto. Quitar cuando el producto esté
+  // listo para ser público.
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 // Next.js separó `themeColor` de `metadata` a `viewport` desde la v14 — si
