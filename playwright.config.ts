@@ -32,6 +32,26 @@ export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
+  // Los dos archivos de spec (demo-flow.spec.ts, feed-flow.spec.ts) abren
+  // varias BrowserContext cada uno (2 y 3 respectivamente) contra el MISMO
+  // `npm run dev` compartido -- `next dev` compila cada ruta la primera vez
+  // que se le pide (webpack, no está pre-compilado) y ese trabajo es
+  // esencialmente serial dentro de un solo proceso de Node. Sin `workers: 1`,
+  // Playwright corre los dos archivos EN PARALELO (2 workers) desde el
+  // arranque, así que hasta 5 contextos de navegador piden rutas nunca antes
+  // compiladas (/login, /home, /reserva, /consultar...) al mismo tiempo -- la
+  // cola de compilación se satura y algunas peticiones (p.ej. el RSC fetch de
+  // /home tras iniciar sesión) tardan tanto que el timeout de
+  // `login()`/`publicarViaje()` se cumple antes de tener respuesta, y la
+  // página se queda viendo /login aunque el login en sí haya funcionado bien
+  // (visto en un run real: 24s de "Fast Refresh rebuilding" en un contexto
+  // dejó a los otros contextos sin una sola petición de red completada
+  // dentro de sus 30s). `workers: 1` corre los archivos uno tras otro --
+  // más lento, pero elimina esta categoría entera de falso negativo. Una vez
+  // que el caché de compilación de `next dev` está caliente (tras la primera
+  // corrida), esto deja de importar tanto, pero no hay garantía de que el
+  // caché siga caliente (reinicios del server, cambios de código, CI limpio).
+  workers: 1,
   retries: 0,
   timeout: 60_000,
   reporter: [["list"], ["html", { open: "never" }]],
