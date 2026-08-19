@@ -21,8 +21,8 @@
 -- ─── 1. trip_offers.home_lat / home_lng ───────────────────────────────────
 
 alter table public.trip_offers
-  add column home_lat double precision,
-  add column home_lng double precision;
+  add column if not exists home_lat double precision,
+  add column if not exists home_lng double precision;
 
 -- Backfill de las filas que ya existan (creadas antes de esta migración) —
 -- se extraen directo de la columna geography que ya tenían, sin necesidad
@@ -42,7 +42,7 @@ alter table public.trip_offers
 -- sabe caer al estimado viejo cuando es null (ver precioDeMatchEmbebido).
 
 alter table public.trip_matches
-  add column distance_km numeric;
+  add column if not exists distance_km numeric;
 
 -- ─── 3. find_driver_offers_near: ahora también regresa home_lat/home_lng ──
 -- (la función se creó en 0006_saved_locations.sql) — lib/actions/feed.ts
@@ -53,6 +53,22 @@ alter table public.trip_matches
 -- Nota: find_candidate_offers (0002/0004) NO necesita este mismo cambio —
 -- ya regresa `setof trip_offers` completo (select o2.*), así que en cuanto
 -- trip_offers tiene home_lat/home_lng, esa función los incluye sola.
+--
+-- `create or replace function` NO permite cambiar las columnas de salida de
+-- una función que devuelve `table (...)` (error de Postgres 42P13: "cannot
+-- change return type of existing function" cuando el set de columnas de
+-- salida es distinto al de 0006, que no tenía home_lat/home_lng) — hay que
+-- borrar la función vieja primero y volver a crearla completa.
+
+drop function if exists public.find_driver_offers_near(
+  double precision,
+  double precision,
+  uuid,
+  timestamptz,
+  timestamptz,
+  numeric,
+  integer
+);
 
 create or replace function public.find_driver_offers_near(
   p_lat double precision,
