@@ -75,3 +75,40 @@ export const PASAJERO_RECHAZO = {
   fullName: "RechazoPasajero Prueba",
   phone: "5500000008",
 };
+
+// Usuarios dedicados a e2e/cancelacion-flow.spec.ts (CU-COND-11/12, CU-PAS-14,
+// CU-E2E-05/06 de docs/casos_de_uso.md: cancelar una oferta propia en
+// 'buscando' sin nadie esperando, un conductor cancelando mientras un
+// pasajero espera respuesta, y un pasajero cancelando su propia solicitud
+// mientras espera). Tres pares/uno dedicados, uno por escenario -- mismo
+// motivo que el resto de los grupos de arriba: usuarios propios para no
+// compartir estado entre specs sin importar el orden en que corran.
+export const CONDUCTOR_CANCELA_SOLO = {
+  email: "e2e.conductor.cancela.solo@itam.mx",
+  fullName: "CancelaSolo ConductorPrueba",
+  phone: "5500000009",
+};
+
+export const CONDUCTOR_CANCELA_PENDIENTE = {
+  email: "e2e.conductor.cancela.pendiente@itam.mx",
+  fullName: "CancelaPendiente ConductorPrueba",
+  phone: "5500000010",
+};
+
+export const PASAJERO_CANCELADO_POR_CONDUCTOR = {
+  email: "e2e.pasajero.cancelado.conductor@itam.mx",
+  fullName: "CanceladoPorConductor Pasajero",
+  phone: "5500000011",
+};
+
+export const CONDUCTOR_ESPERA_CANCELACION = {
+  email: "e2e.conductor.espera.cancelacion@itam.mx",
+  fullName: "EsperaCancelacion ConductorPrueba",
+  phone: "5500000012",
+};
+
+export const PASAJERO_CANCELA_PROPIA = {
+  email: "e2e.pasajero.cancela.propia@itam.mx",
+  fullName: "CancelaPropia Pasajero",
+  phone: "5500000013",
+};

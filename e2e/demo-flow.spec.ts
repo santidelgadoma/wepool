@@ -52,26 +52,55 @@ test("conductor y pasajero se emparejan y confirman un viaje de ida", async ({ b
       hora: "10:30",
     });
 
-    // Paso 1 del emparejamiento (docs/esquema_base_datos.md sección 5): el
-    // pasajero elige uno de sus candidatos.
+    // Paso 1 del emparejamiento (docs/esquema_base_datos.md sección 5, y ver
+    // PROGRESS.md "Solicitudes urgentes"): el pasajero elige uno de sus
+    // candidatos — eso marca ambas ofertas (la propia y la del conductor)
+    // como 'pendiente', así que la tarjeta desaparece de /consultar de
+    // inmediato; el estado de espera persistente ahora vive en /home.
     await pasajeroPage.goto("/consultar");
-    const elegirComoPasajero = pasajeroPage
-      .getByRole("button", { name: "Elegir este viaje" })
-      .first();
+    // ElegirBoton lleva id={`elegir-${matchId}`} (ver components/elegir-boton.tsx)
+    // en vez de solo texto visible -- un cambio de copy ("Elegir este viaje")
+    // ya no puede romper este test en silencio.
+    const elegirComoPasajero = pasajeroPage.locator('button[id^="elegir-"]').first();
     await expect(elegirComoPasajero).toBeVisible({ timeout: 20_000 });
     await elegirComoPasajero.click();
-    await expect(pasajeroPage.getByText(/falta que el conductor lo confirme/i)).toBeVisible({
+    // elegir-boton.tsx solo muestra "¡Elegido!..." DESPUÉS de que
+    // elegirCandidato() ya resolvió (ver el await dentro de startTransition en
+    // ese componente) -- hay que esperar este texto antes de navegar a /home,
+    // si no la navegación puede ganarle la carrera al escritura en la base de
+    // datos y /home se renderiza server-side con el estado viejo (sin
+    // "esperando respuesta del conductor"), sin que ningún refresh posterior
+    // lo corrija porque la página ya se sirvió una sola vez.
+    await expect(pasajeroPage.getByText("¡Elegido! Revisa el estado en Inicio.")).toBeVisible({
       timeout: 10_000,
     });
 
-    // Paso 2: el conductor ve al pasajero ya confirmado y elige también —
-    // eso crea confirmed_trips y borra ambas ofertas.
+    await pasajeroPage.goto("/home");
+    await expect(pasajeroPage.getByText(/esperando respuesta del conductor/i)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Paso 2: la solicitud le aparece al conductor como notificación urgente
+    // en cualquier pantalla (banner global, app/(app)/layout.tsx) y también
+    // en /consultar ("Solicitudes por responder", mismo componente). Aceptar
+    // crea confirmed_trips y pasa ambas ofertas a 'confirmado'.
     await conductorPage.goto("/consultar");
-    const elegirComoConductor = conductorPage
-      .getByRole("button", { name: "Elegir este viaje" })
-      .first();
-    await expect(elegirComoConductor).toBeVisible({ timeout: 20_000 });
-    await elegirComoConductor.click();
+    // SolicitudCard lleva id={`aceptar-${matchId}`} / id={`rechazar-${matchId}`}
+    // (ver components/solicitud-card.tsx) por la misma razón de arriba.
+    const aceptarComoConductor = conductorPage.locator('button[id^="aceptar-"]').first();
+    await expect(aceptarComoConductor).toBeVisible({ timeout: 20_000 });
+    await aceptarComoConductor.click();
+    // Mismo motivo que el "¡Elegido!..." de arriba: SolicitudCard solo
+    // muestra este texto DESPUÉS de que responderSolicitud() ya resolvió
+    // (incluyendo el insert de confirmed_trips) -- "Todavía no hay
+    // candidatos compatibles" de abajo es cierto en cuanto la oferta propia
+    // deja de estar en 'buscando', que puede pasar ANTES de que termine de
+    // crearse confirmed_trips, así que por sí solo no garantiza que el viaje
+    // ya esté confirmado a tiempo para el goto("/manana") de abajo (visto en
+    // una corrida real: /manana cargó antes de que el insert terminara).
+    await expect(
+      conductorPage.getByText("¡Viaje confirmado! Ya puedes verlo en Mañana.")
+    ).toBeVisible({ timeout: 10_000 });
     await expect(conductorPage.getByText("Todavía no hay candidatos compatibles")).toBeVisible({
       timeout: 10_000,
     });

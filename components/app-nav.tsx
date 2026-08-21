@@ -29,6 +29,7 @@ export function AppNav() {
         return (
           <Link
             key={link.href}
+            id={`nav-${link.href.slice(1)}`}
             href={link.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(

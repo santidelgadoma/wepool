@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { estimarPrecioViaje, VELOCIDAD_PROMEDIO_KMH, duracionDesdeMetros } from "@/lib/pricing";
 import { calcularMatrizRutas } from "@/lib/rutas";
+import { tieneSolicitudActivaEnDireccion } from "@/lib/actions/solicitudes";
 
 const RADIO_KM = 15;
 const VENTANA_MINUTOS = 30;
@@ -215,6 +216,17 @@ export async function obtenerCandidatos(): Promise<{
       precioPasajeroMXN,
       gananciaConductorMXN,
       passengerConfirmed: m.passenger_confirmed,
+      // El lado "miRol === conductor" de este cálculo ya no puede volver
+      // true en la práctica bajo el nuevo modelo de solicitudes urgentes
+      // (ver lib/actions/solicitudes.ts): en cuanto un pasajero confirma, la
+      // oferta del conductor pasa a 'pendiente' y misOfertas (arriba) deja
+      // de incluirla, así que este candidato de conductor ni se genera en la
+      // siguiente carga. Nota: por el mismo motivo, en cuanto el PASAJERO
+      // confirma, su propia oferta también pasa a 'pendiente' — este mismo
+      // candidato desaparece de su propia lista en la siguiente carga (en
+      // vez de quedarse mostrando "falta que el conductor lo confirme" como
+      // antes). El estado de espera visible y persistente ahora vive en
+      // /home (ver obtenerEstadoPasajero), no aquí.
       puedoElegir: miRol === "conductor" ? m.passenger_confirmed : !m.passenger_confirmed,
     });
   }
@@ -227,10 +239,15 @@ export async function obtenerCandidatos(): Promise<{
 export type ElegirCandidatoState = { error?: string; success?: boolean };
 
 /**
- * Segundo paso del flujo de confirmación (docs/esquema_base_datos.md sección
- * 5): el pasajero elige un candidato (marca passenger_confirmed), y luego el
- * conductor elige entre los candidatos ya confirmados por un pasajero — eso
- * crea la fila en confirmed_trips y borra las ofertas de ambos usuarios.
+ * Primer paso del flujo de confirmación, versión "manual" (publicar en
+ * /reserva como pasajero y elegir aquí en vez de usar el feed del home) —
+ * ver docs/esquema_base_datos.md sección 5. El pasajero elige un candidato:
+ * marca passenger_confirmed Y pasa ambas ofertas (la propia y la del
+ * conductor) a status 'pendiente', exactamente igual que unirmeAViaje
+ * (lib/actions/feed.ts) — mismo modelo de solicitud urgente/exclusiva sin
+ * importar por cuál de los dos caminos llegó el pasajero. El conductor ya NO
+ * "elige" acá: responde aceptar/rechazar desde el banner urgente global o
+ * desde la lista de arriba en /consultar (ver lib/actions/solicitudes.ts).
  */
 export async function elegirCandidato(matchId: string): Promise<ElegirCandidatoState> {
   try {
@@ -300,69 +317,56 @@ async function elegirCandidatoInterno(matchId: string): Promise<ElegirCandidatoS
     if (match.passenger_confirmed) {
       return { error: "Ya habías elegido este viaje." };
     }
+
+    // Misma defensa en profundidad que unirmeAViaje (lib/actions/feed.ts) —
+    // la UI ya debería impedir llegar aquí con una solicitud activa en esta
+    // dirección, esto cubre la carrera de dos pestañas o un doble clic.
+    const yaTieneSolicitud = await tieneSolicitudActivaEnDireccion(
+      supabase,
+      user.id,
+      ofertaPasajero.direction as "ida" | "regreso"
+    );
+    if (yaTieneSolicitud) {
+      return { error: "Ya tienes una solicitud en curso para este tipo de viaje." };
+    }
+
     const { error } = await admin
       .from("trip_matches")
       .update({ passenger_confirmed: true })
       .eq("id", matchId);
     if (error) return { error: `No se pudo confirmar: ${error.message}` };
+
+    // Ambas ofertas pasan a 'pendiente' — exclusivo mientras el conductor no
+    // responda (ver lib/actions/solicitudes.ts): ningún otro pasajero puede
+    // elegir esta misma oferta de conductor, y este pasajero no puede elegir
+    // otro viaje de la misma dirección hasta que se resuelva.
+    const { error: errorPendiente } = await admin
+      .from("trip_offers")
+      .update({ status: "pendiente" })
+      .in("id", [ofertaConductor.id, ofertaPasajero.id]);
+    if (errorPendiente) {
+      console.error(
+        "elegirCandidato: no se pudo marcar las ofertas como pendientes",
+        errorPendiente
+      );
+    }
+
     revalidatePath("/consultar");
+    revalidatePath("/home");
+    revalidatePath("/cancelar");
     return { success: true };
   }
 
-  // soyElConductor
-  if (!match.passenger_confirmed) {
-    return { error: "Este pasajero todavía no ha elegido este viaje." };
-  }
-
-  const { error: errorConfirmado } = await admin.from("confirmed_trips").insert({
-    match_id: match.id,
-    driver_id: ofertaConductor.user_id,
-    passenger_id: ofertaPasajero.user_id,
-    direction: ofertaConductor.direction,
-    vehicle_id: ofertaConductor.vehicle_id,
-    home_address: ofertaPasajero.home_address,
-    scheduled_time: ofertaConductor.scheduled_time,
-    meeting_point: ofertaConductor.meeting_point,
-  });
-
-  if (errorConfirmado) {
-    return { error: `No se pudo confirmar el viaje: ${errorConfirmado.message}` };
-  }
-
-  // No se borran ni las ofertas ni el trip_matches que las conecta. El
-  // schema real (0001_init_schema.sql) tiene trip_offers -> trip_matches con
-  // ON DELETE CASCADE, PERO confirmed_trips.match_id -> trip_matches NO lo
-  // tiene, a propósito, para conservar el vínculo histórico con el match que
-  // originó la confirmación. Eso significa que el trip_matches recién usado
-  // para crear este confirmed_trips es, por diseño, imposible de borrar — ni
-  // directo ni por cascada al borrar trip_offers. Intentarlo revienta con
-  // "violates foreign key constraint confirmed_trips_match_id_fkey" (este
-  // fue el bug real que encontró el test E2E, ver PROGRESS.md).
-  //
-  // En vez de borrar, se marca la oferta como 'confirmado' — trip_offer_status
-  // ya incluye ese valor en el enum, sin usar hasta ahora. obtenerCandidatos()
-  // filtra por status = 'buscando', así que una oferta confirmada deja de
-  // aparecer como candidato para cualquiera sin necesidad de tocar
-  // trip_matches ni trip_offers vía delete.
-  const { error: errorActualizarOfertas } = await admin
-    .from("trip_offers")
-    .update({ status: "confirmado" })
-    .in("id", [ofertaConductor.id, ofertaPasajero.id]);
-
-  if (errorActualizarOfertas) {
-    console.error(
-      "elegirCandidato: no se pudo actualizar el status de las ofertas",
-      errorActualizarOfertas
-    );
-    return {
-      error: `El viaje se confirmó pero no se pudo actualizar el status de las ofertas: ${errorActualizarOfertas.message}`,
-    };
-  }
-
-  revalidatePath("/consultar");
-  revalidatePath("/manana");
-  revalidatePath("/historial");
-  revalidatePath("/reserva");
-  revalidatePath("/cancelar");
-  return { success: true };
+  // soyElConductor — bajo el nuevo modelo esta rama ya no debería ser
+  // alcanzable en la práctica: en cuanto un pasajero elige (arriba), la
+  // oferta del conductor pasa a 'pendiente' y deja de aparecer en
+  // obtenerCandidatos (que filtra las ofertas propias por status =
+  // 'buscando'), así que puedoElegir nunca vuelve true para el conductor. Se
+  // deja como respuesta defensiva por si algún cliente queda con una
+  // versión vieja de la página en caché. El conductor responde
+  // aceptar/rechazar desde el banner urgente o desde /consultar (ver
+  // lib/actions/solicitudes.ts::responderSolicitud).
+  return {
+    error: "Usa el panel de solicitudes pendientes para aceptar o rechazar este viaje.",
+  };
 }

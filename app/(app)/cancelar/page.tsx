@@ -17,11 +17,16 @@ export default async function CancelarPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // También se listan las ofertas 'pendiente' (solicitud urgente en curso,
+  // ver lib/actions/solicitudes.ts) -- antes solo se podían cancelar ofertas
+  // 'buscando', así que alguien esperando respuesta se quedaba sin forma de
+  // arrepentirse desde la UI. cancelarOferta ya sabe avisarle a la
+  // contraparte cuando se cancela una oferta pendiente (ver lib/actions/cancelar.ts).
   const { data: ofertas } = await supabase
     .from("trip_offers")
-    .select("id, direction, role, home_address, scheduled_time")
+    .select("id, direction, role, home_address, scheduled_time, status")
     .eq("user_id", user!.id)
-    .eq("status", "buscando")
+    .in("status", ["buscando", "pendiente"])
     .order("scheduled_time", { ascending: true });
 
   return (
@@ -69,6 +74,9 @@ export default async function CancelarPage() {
                       <Badge variant="outline">
                         {ETIQUETA_DIRECCION[oferta.direction as "ida" | "regreso"]}
                       </Badge>
+                      {oferta.status === "pendiente" && (
+                        <Badge variant="info">Esperando respuesta</Badge>
+                      )}
                     </div>
                     <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       <span className="inline-flex items-center gap-1">

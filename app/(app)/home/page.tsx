@@ -1,15 +1,30 @@
 import Link from "next/link";
-import { Car, MapPin, Clock, Wallet, Sunrise, Search, History, XCircle } from "lucide-react";
+import {
+  Car,
+  MapPin,
+  Clock,
+  Wallet,
+  Sunrise,
+  Search,
+  History,
+  XCircle,
+  Hourglass,
+  CheckCircle2,
+  Info,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { nombreInstitucion } from "@/lib/institucion";
 import { listarUbicaciones } from "@/lib/actions/ubicaciones";
 import { obtenerFeed } from "@/lib/actions/feed";
+import { obtenerEstadoPasajero, type EstadoDireccion } from "@/lib/actions/solicitudes";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LocationSwitcher } from "@/components/location-switcher";
 import { UbicacionForm } from "@/components/ubicacion-form";
 import { UnirmeBoton } from "@/components/unirme-boton";
+import { FeedRealtime } from "@/components/feed-realtime";
+import { PublicadoBanner } from "@/components/publicado-banner";
 import { formatearFechaHoraCDMX } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION, ETIQUETA_UBICACION } from "@/lib/etiquetas";
 import { formatearMXN } from "@/lib/pricing";
@@ -40,7 +55,7 @@ const ACCESOS_SECUNDARIOS = [
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ loc?: string }>;
+  searchParams: Promise<{ loc?: string; publicado?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -50,7 +65,7 @@ export default async function HomePage({
   const [{ data: profile }, ubicaciones] = await Promise.all([
     supabase
       .from("profiles")
-      .select("full_name, institutions(name)")
+      .select("full_name, institution_id, institutions(name)")
       .eq("id", user!.id)
       .single(),
     listarUbicaciones(),
@@ -64,12 +79,47 @@ export default async function HomePage({
     : ((ubicaciones[0]?.kind as Kind | undefined) ?? "casa");
   const ubicacionSeleccionada = ubicaciones.find((u) => u.kind === kindSeleccionado) ?? null;
 
-  const feed = ubicacionSeleccionada
-    ? await obtenerFeed(ubicacionSeleccionada.id)
-    : { candidatos: [] as Awaited<ReturnType<typeof obtenerFeed>>["candidatos"] };
+  const [feed, estadoPasajero] = await Promise.all([
+    ubicacionSeleccionada
+      ? obtenerFeed(ubicacionSeleccionada.id)
+      : Promise.resolve({
+          candidatos: [] as Awaited<ReturnType<typeof obtenerFeed>>["candidatos"],
+        }),
+    obtenerEstadoPasajero(),
+  ]);
+
+  // Bloqueo por dirección (ver PROGRESS.md, "Solicitudes urgentes"): mientras
+  // el usuario tenga una solicitud pendiente o un viaje ya confirmado de
+  // ida, no puede elegir OTRO viaje de ida (pero sí de regreso, y viceversa
+  // -- son independientes). Las tarjetas de la dirección bloqueada se
+  // esconden del feed; en su lugar se muestra una tarjeta de estado.
+  const candidatosVisibles = feed.candidatos.filter(
+    (c) => estadoPasajero.estados[c.direction] === "ninguna"
+  );
+  const direccionesBloqueadas = (["ida", "regreso"] as const).filter(
+    (d) => estadoPasajero.estados[d] !== "ninguna"
+  );
+
+  // Feed en tiempo real (ver PROGRESS.md, "Feed en tiempo real con Realtime
+  // Broadcast"): solo se suscribe cuando de verdad hay algo que escuchar --
+  // el pasajero necesita una ubicación guardada para tener un feed que
+  // refrescar, y al menos una dirección sin bloquear (si ya tiene ida y
+  // regreso resueltos, no hay ningún viaje nuevo que le sirva).
+  const escuchaEnVivo =
+    ubicacionSeleccionada && profile?.institution_id && direccionesBloqueadas.length < 2;
 
   return (
     <div className="space-y-6">
+      {escuchaEnVivo && (
+        <FeedRealtime
+          institutionId={profile!.institution_id as string}
+          direccionesBloqueadas={direccionesBloqueadas}
+        />
+      )}
+      {/* Aviso de "¡Viaje publicado!" tras publicar como conductor (ver
+          lib/actions/reserva.ts, crearOferta) -- ahora redirige aquí en vez
+          de quedarse en /reserva mostrando el mensaje ahí. */}
+      {params.publicado === "1" && <PublicadoBanner />}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Hola, {profile?.full_name ?? user?.email}</h1>
@@ -84,6 +134,71 @@ export default async function HomePage({
           </Button>
         </Link>
       </div>
+
+      {/* Aviso de rechazo (ver PROGRESS.md, "Solicitudes urgentes"): se
+          muestra una sola vez -- obtenerEstadoPasajero ya borró la oferta
+          'rechazado' que lo generó en cuanto la leyó, así que no reaparece
+          en la siguiente visita. */}
+      {estadoPasajero.avisosRechazo.map((direction) => (
+        <Card key={direction} className="border-destructive/30 bg-destructive/5">
+          <CardHeader className="flex flex-row items-center gap-3 py-4">
+            <Info className="h-5 w-5 shrink-0 text-destructive" />
+            <CardDescription className="text-sm text-foreground">
+              El conductor rechazó tu solicitud de{" "}
+              <strong>{ETIQUETA_DIRECCION[direction].toLowerCase()}</strong>. Puedes elegir otro
+              viaje de la lista de abajo.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ))}
+
+      {/* Tarjeta de estado por cada dirección bloqueada (ver PROGRESS.md,
+          "Solicitudes urgentes") -- fuera del bloque de ubicación guardada a
+          propósito: una solicitud pudo haberse originado desde /consultar
+          (flujo manual viejo, sin ubicación guardada), no solo desde este
+          feed, así que el aviso debe verse sin importar si ya se configuró
+          una ubicación. Reemplaza las tarjetas del feed de esa dirección
+          mientras el usuario tiene una solicitud pendiente o un viaje ya
+          confirmado. */}
+      {direccionesBloqueadas.map((direction) => {
+        const estado: EstadoDireccion = estadoPasajero.estados[direction];
+        const esConfirmado = estado === "confirmado";
+        return (
+          <Card
+            key={direction}
+            className={esConfirmado ? "border-emerald-300 bg-emerald-50" : "border-sky-300 bg-sky-50"}
+          >
+            <CardHeader className="flex flex-row items-center gap-3 py-4">
+              {esConfirmado ? (
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
+              ) : (
+                <Hourglass className="h-5 w-5 shrink-0 text-sky-700" />
+              )}
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">
+                  {esConfirmado
+                    ? `Ya tienes un viaje de ${ETIQUETA_DIRECCION[direction].toLowerCase()} confirmado`
+                    : `Elegiste un viaje de ${ETIQUETA_DIRECCION[direction].toLowerCase()} — esperando respuesta del conductor`}
+                </p>
+                <CardDescription>
+                  {esConfirmado ? (
+                    <>
+                      Ya no puedes elegir otro viaje de {ETIQUETA_DIRECCION[direction].toLowerCase()}.
+                      Revisa el detalle en{" "}
+                      <Link className="underline" href="/manana">
+                        Viajes de mañana
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    "No puedes elegir otro viaje de esta dirección mientras esperas — si el conductor rechaza, se te avisa aquí y puedes elegir otro."
+                  )}
+                </CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        );
+      })}
 
       <div className="space-y-3">
         <LocationSwitcher configuradas={configuradas} seleccionada={kindSeleccionado} />
@@ -130,7 +245,7 @@ export default async function HomePage({
                   <CardDescription>{feed.error}</CardDescription>
                 </CardHeader>
               </Card>
-            ) : feed.candidatos.length === 0 ? (
+            ) : candidatosVisibles.length === 0 && direccionesBloqueadas.length < 2 ? (
               <Card>
                 <CardHeader>
                   <div className="mb-1 flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -147,9 +262,9 @@ export default async function HomePage({
                   </CardDescription>
                 </CardHeader>
               </Card>
-            ) : (
+            ) : candidatosVisibles.length === 0 ? null : (
               <div className="space-y-3">
-                {feed.candidatos.map((c) => (
+                {candidatosVisibles.map((c) => (
                   <Card key={c.offerId}>
                     <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                       <div className="space-y-2">

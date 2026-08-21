@@ -37,7 +37,13 @@ export function CancelarBoton({ offerId }: { offerId: string }) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button variant="destructive" size="sm" onClick={handleClick} disabled={isPending}>
+      <Button
+        id={`cancelar-${offerId}`}
+        variant="destructive"
+        size="sm"
+        onClick={handleClick}
+        disabled={isPending}
+      >
         {isPending ? "Cancelando..." : "Cancelar"}
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}

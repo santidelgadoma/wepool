@@ -33,15 +33,15 @@ export function UbicacionForm({
         />
         {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       </div>
-      <BotonGuardar />
+      <BotonGuardar kind={kind} />
     </form>
   );
 }
 
-function BotonGuardar() {
+function BotonGuardar({ kind }: { kind: "casa" | "oficina" | "otro" }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="sm" disabled={pending}>
+    <Button id={`guardar-ubicacion-${kind}`} type="submit" size="sm" disabled={pending}>
       {pending ? "Guardando..." : "Guardar ubicación"}
     </Button>
   );

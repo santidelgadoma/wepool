@@ -9,6 +9,7 @@ export function ElegirBoton({ matchId }: { matchId: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [elegido, setElegido] = useState(false);
 
   function handleClick() {
     setError(null);
@@ -30,6 +31,12 @@ export function ElegirBoton({ matchId }: { matchId: string }) {
         setError(resultado.error);
         return;
       }
+      // A diferencia de antes, esta tarjeta va a desaparecer de la lista en
+      // cuanto se recargue (la oferta propia pasa a 'pendiente', ver
+      // lib/actions/consultar.ts) — el estado de espera persistente ahora
+      // vive en /home, no aquí. `elegido` solo se alcanza a ver un instante
+      // antes de que router.refresh() la quite de la lista.
+      setElegido(true);
       // revalidatePath (dentro de elegirCandidato) invalida la caché del
       // servidor, pero no obliga al cliente a re-pedir esta ruta. Se envuelve
       // en su propio startTransition (en vez de llamarlo directo aquí,
@@ -41,9 +48,17 @@ export function ElegirBoton({ matchId }: { matchId: string }) {
     });
   }
 
+  if (elegido) {
+    return (
+      <p className="max-w-[10rem] text-right text-xs font-medium text-emerald-700">
+        ¡Elegido! Revisa el estado en Inicio.
+      </p>
+    );
+  }
+
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button size="sm" onClick={handleClick} disabled={isPending}>
+      <Button id={`elegir-${matchId}`} size="sm" onClick={handleClick} disabled={isPending}>
         {isPending ? "Eligiendo..." : "Elegir este viaje"}
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}

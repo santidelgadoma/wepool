@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { geocodificarDireccion, GeocodingError, distanciaHaversineKm } from "@/lib/geocoding";
@@ -68,7 +69,6 @@ const ofertaSchema = z
 export type CrearOfertaState = {
   error?: string;
   fieldErrors?: Record<string, string>;
-  success?: boolean;
 };
 
 export async function crearOferta(
@@ -187,7 +187,17 @@ export async function crearOferta(
 
   revalidatePath("/reserva");
   revalidatePath("/cancelar");
-  return { success: true };
+  revalidatePath("/home");
+  // Antes se quedaba en /reserva mostrando un mensaje de éxito con links a
+  // /cancelar y /consultar -- el usuario pidió que, en vez de eso, lo mande
+  // directo al home (que ahora ES el feed/panel principal, ver PROGRESS.md
+  // "Rediseño del home"). `?publicado=1` es lo que HomePage lee para mostrar
+  // el aviso de "¡Viaje publicado!" una sola vez (ver
+  // app/(app)/home/page.tsx) -- redirect() dentro de una Server Action tira
+  // una excepción especial que Next.js intercepta para navegar, así que todo
+  // lo que esté después de esta línea (y el `return { success: true }` de
+  // antes) ya no se ejecuta ni hace falta.
+  redirect("/home?publicado=1");
 }
 
 // ─── Previsualización de dirección (en vivo, antes de publicar) ────────────

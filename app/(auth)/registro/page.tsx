@@ -121,7 +121,7 @@ export default function RegistroPage() {
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
         <CardFooter>
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button id="registro-submit" type="submit" className="w-full" disabled={loading}>
             {loading ? "Creando cuenta..." : "Crear cuenta"}
           </Button>
         </CardFooter>

@@ -1,0 +1,36 @@
+-- 0008_solicitudes_urgentes.sql
+-- Rediseño del flujo de "escoger un viaje" -> "el conductor acepta o
+-- rechaza": el usuario probó el flujo completo (feed -> elegir -> /consultar
+-- para confirmar) y pidió que se sintiera como una solicitud real en vez de
+-- una lista pasiva que había que ir a revisar. Tres cambios de comportamiento
+-- (ver PROGRESS.md para el detalle completo):
+--
+-- 1. En cuanto un pasajero elige un viaje (desde el feed del home o desde
+--    /consultar a la manera vieja), la oferta del conductor pasa a
+--    'pendiente' -- deja de aparecer para cualquier otro pasajero (tanto
+--    find_driver_offers_near como find_candidate_offers ya filtran los
+--    candidatos por status = 'buscando', así que este solo cambio de status
+--    basta para la exclusividad, sin tocar ninguna función SQL).
+-- 2. El conductor ve esa solicitud como una notificación urgente (banner
+--    global en todas las pantallas, ver lib/actions/solicitudes.ts) y
+--    responde aceptar/rechazar -- ya no "navega y elige entre varios
+--    candidatos", porque solo puede haber una solicitud pendiente a la vez
+--    por oferta.
+-- 3. Si acepta, ambas ofertas pasan a 'confirmado' (ya existía ese valor en
+--    el enum, solo que antes solo lo usaba el conductor al elegir en
+--    /consultar). Si rechaza, la oferta del conductor vuelve a 'buscando'
+--    (disponible de nuevo para cualquiera) y la del pasajero pasa a
+--    'rechazado' -- un estado transitorio, solo para poder avisarle con un
+--    mensaje la próxima vez que abra el home; se borra en cuanto se lee (ver
+--    obtenerEstadoPasajero en lib/actions/solicitudes.ts).
+--
+-- ALTER TYPE ... ADD VALUE no se puede usar dentro de la misma transacción
+-- en la que ese valor nuevo se usa (limitación de Postgres, no de Supabase)
+-- -- pero aquí solo se agregan los valores al enum, ningún UPDATE de esta
+-- misma migración los usa, así que es seguro correrlo tal cual en el Editor
+-- SQL de Supabase (que corre el script completo como una transacción
+-- implícita -- ver la nota equivalente que se agregó a 0007_rutas_reales.sql
+-- después de que ese mismo comportamiento causó un error real ahí).
+
+alter type trip_offer_status add value if not exists 'pendiente';
+alter type trip_offer_status add value if not exists 'rechazado';

@@ -22,7 +22,10 @@ import { login, publicarViaje, guardarUbicacionCasa } from "./helpers";
 test("el pasajero elige un viaje, el conductor lo rechaza, y el pasajero elige uno distinto de la misma dirección", async ({
   browser,
 }) => {
-  test.setTimeout(150_000);
+  // 180s en vez de 150s: mismo motivo que feed-flow.spec.ts (paso de limpieza
+  // nuevo al final) mas un ciclo completo extra (rechazo + segunda elección)
+  // sobre la misma suite dependiente de red real.
+  test.setTimeout(180_000);
 
   const conductorAContext = await browser.newContext();
   const conductorBContext = await browser.newContext();
@@ -150,10 +153,24 @@ test("el pasajero elige un viaje, el conductor lo rechaza, y el pasajero elige u
     ).toBe(true);
 
     const conductorQueAcepta = tieneSolicitudA2 ? conductorAPage : conductorBPage;
+    const conductorSinConfirmar = tieneSolicitudA2 ? conductorBPage : conductorAPage;
     await conductorQueAcepta.locator('button[id^="aceptar-"]').first().click();
     await expect(
       conductorQueAcepta.getByText("¡Viaje confirmado! Ya puedes verlo en Mañana.")
     ).toBeVisible({ timeout: 10_000 });
+
+    // El conductor que rechazó al principio (o el que nunca recibió ninguna
+    // solicitud) termina el test con su oferta en 'buscando' -- mismo
+    // problema que en feed-flow.spec.ts: sin cancelarla, queda viva y puede
+    // colarse en el feed de cualquier otro spec que publique dentro de los
+    // mismos 15km. Se cancela por la UI, como haría un conductor real.
+    await conductorSinConfirmar.goto("/cancelar");
+    const cancelarSinConfirmar = conductorSinConfirmar.locator('button[id^="cancelar-"]').first();
+    await expect(cancelarSinConfirmar).toBeVisible({ timeout: 10_000 });
+    await cancelarSinConfirmar.click();
+    await expect(conductorSinConfirmar.locator('button[id^="cancelar-"]')).toHaveCount(0, {
+      timeout: 10_000,
+    });
 
     await pasajeroPage.goto("/home");
     await expect(

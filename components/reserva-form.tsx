@@ -107,6 +107,7 @@ export function ReservaForm({
               {(["pasajero", "conductor"] as const).map((opcion) => (
                 <Button
                   key={opcion}
+                  id={`role-${opcion}`}
                   type="button"
                   variant={role === opcion ? "default" : "outline"}
                   onClick={() => setRole(opcion)}
@@ -129,6 +130,7 @@ export function ReservaForm({
               {(["ida", "regreso"] as const).map((opcion) => (
                 <Button
                   key={opcion}
+                  id={`direction-${opcion}`}
                   type="button"
                   variant={direction === opcion ? "default" : "outline"}
                   onClick={() => setDirection(opcion)}
@@ -261,6 +263,7 @@ export function ReservaForm({
                   {(["true", "false"] as const).map((valor) => (
                     <Button
                       key={valor}
+                      id={`toll-roads-${valor}`}
                       type="button"
                       size="sm"
                       variant={tollRoads === valor ? "default" : "outline"}
@@ -294,23 +297,6 @@ export function ReservaForm({
           )}
 
           {state.error && <p className="text-sm text-destructive">{state.error}</p>}
-
-          {state.success && (
-            <div className="flex items-start gap-2 rounded-md border border-emerald-600/30 bg-emerald-50 px-3 py-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-              <p className="text-sm text-emerald-700">
-                ¡Viaje publicado! Puedes verlo en{" "}
-                <a className="underline" href="/cancelar">
-                  Cancelar
-                </a>{" "}
-                o revisar candidatos en{" "}
-                <a className="underline" href="/consultar">
-                  Consultar viajes
-                </a>
-                .
-              </p>
-            </div>
-          )}
         </CardContent>
         <CardFooter>
           <BotonPublicar />
@@ -323,7 +309,7 @@ export function ReservaForm({
 function BotonPublicar() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
+    <Button id="publicar-viaje-submit" type="submit" className="w-full" disabled={pending}>
       {pending ? "Publicando..." : "Publicar viaje"}
     </Button>
   );

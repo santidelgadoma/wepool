@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { nombreInstitucion } from "@/lib/institucion";
 import { LogoutButton } from "@/components/logout-button";
 import { AppNav } from "@/components/app-nav";
+import { SolicitudCard } from "@/components/solicitud-card";
+import { obtenerSolicitudesPendientesConductor } from "@/lib/actions/solicitudes";
 
 // El middleware ya rebota a /login si no hay sesión, pero se vuelve a
 // verificar aquí (defensa en profundidad) para que este layout nunca
@@ -31,6 +33,14 @@ export default async function AppLayout({
     .single();
 
   const institucion = nombreInstitucion(profile?.institutions);
+
+  // Notificación urgente (ver PROGRESS.md, "Solicitudes urgentes"): si el
+  // usuario tiene alguna oferta de conductor con una solicitud de pasajero
+  // pendiente de responder, se muestra un banner imposible de ignorar en
+  // TODAS las pantallas (no solo en /home o /consultar) -- se consulta en
+  // cada carga del layout, así que aparece sin importar dónde esté
+  // navegando en el momento en que le llega una solicitud.
+  const solicitudesPendientes = await obtenerSolicitudesPendientesConductor();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -60,6 +70,20 @@ export default async function AppLayout({
           </div>
         </nav>
       </header>
+      {solicitudesPendientes.length > 0 && (
+        <div className="border-b bg-amber-50/80">
+          <div className="mx-auto w-full max-w-4xl space-y-2 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              {solicitudesPendientes.length === 1
+                ? "Tienes un pasajero esperando tu respuesta"
+                : `Tienes ${solicitudesPendientes.length} pasajeros esperando tu respuesta`}
+            </p>
+            {solicitudesPendientes.map((solicitud) => (
+              <SolicitudCard key={solicitud.matchId} solicitud={solicitud} urgente />
+            ))}
+          </div>
+        </div>
+      )}
       <main className="mx-auto w-full max-w-4xl flex-1 p-6">{children}</main>
     </div>
   );

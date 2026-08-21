@@ -52,7 +52,12 @@ export function UnirmeBoton({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button size="sm" onClick={handleClick} disabled={isPending}>
+      <Button
+        id={`unirme-${driverOfferId}`}
+        size="sm"
+        onClick={handleClick}
+        disabled={isPending}
+      >
         {isPending ? "Uniéndote..." : "Unirme a este viaje"}
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}

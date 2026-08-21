@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { estimarPrecioViaje, duracionDesdeMetros } from "@/lib/pricing";
 import { rangoUTCDeManana } from "@/lib/datetime";
 import { calcularMatrizRutas, calcularRutaReal } from "@/lib/rutas";
+import { tieneSolicitudActivaEnDireccion } from "@/lib/actions/solicitudes";
+import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
 
 const RADIO_KM = 15;
 const LIMITE_FEED = 30;
@@ -119,9 +121,10 @@ export type UnirmeState = { error?: string; success?: boolean };
 // Colapsa en un solo paso lo que antes eran dos (publicar oferta propia en
 // /reserva + confirmar candidato en /consultar): elegir una tarjeta del feed
 // crea la trip_offer del pasajero Y la marca como confirmada
-// (passenger_confirmed = true) en la misma acción -- el conductor sigue
-// confirmando desde /consultar como siempre (ver elegirCandidato en
-// lib/actions/consultar.ts, sin cambios).
+// (passenger_confirmed = true) en la misma acción, y ambas ofertas pasan a
+// 'pendiente' (ver más abajo) -- el conductor responde aceptar/rechazar
+// desde el banner urgente global o /consultar (ver lib/actions/solicitudes.ts,
+// PROGRESS.md "Solicitudes urgentes").
 export async function unirmeAViaje(
   driverOfferId: string,
   savedLocationId: string
@@ -175,6 +178,23 @@ async function unirmeAViajeInterno(
     return { error: "Ese viaje ya no está disponible. Actualiza la página." };
   }
 
+  // Defensa en profundidad (ver lib/actions/solicitudes.ts): el home ya
+  // oculta el feed de una dirección mientras el usuario tiene una solicitud
+  // pendiente o confirmada, pero esto cubre el caso de dos pestañas abiertas
+  // o un doble clic antes de que la UI se actualice.
+  const yaTieneSolicitud = await tieneSolicitudActivaEnDireccion(
+    supabase,
+    user.id,
+    ofertaConductor.direction as "ida" | "regreso"
+  );
+  if (yaTieneSolicitud) {
+    return {
+      error: `Ya tienes una solicitud de ${ETIQUETA_DIRECCION[
+        ofertaConductor.direction as "ida" | "regreso"
+      ].toLowerCase()} en curso. Espera la respuesta del conductor.`,
+    };
+  }
+
   const { data: ofertaPasajero, error: errorInsert } = await supabase
     .from("trip_offers")
     .insert({
@@ -189,6 +209,7 @@ async function unirmeAViajeInterno(
       scheduled_time: ofertaConductor.scheduled_time,
       uses_toll_roads: null,
       meeting_point: null,
+      status: "pendiente",
     })
     .select("id")
     .single();
@@ -238,7 +259,26 @@ async function unirmeAViajeInterno(
     };
   }
 
+  // La oferta del conductor pasa a 'pendiente' -- deja de aparecer en el
+  // feed de cualquier otro pasajero (find_driver_offers_near filtra por
+  // status = 'buscando') hasta que el conductor acepte o rechace esta
+  // solicitud (ver lib/actions/solicitudes.ts, notificación urgente en
+  // app/(app)/layout.tsx). Se hace después de crear el match, no antes, para
+  // no dejar la oferta bloqueada si el insert de arriba falla.
+  const { error: errorMarcarPendiente } = await admin
+    .from("trip_offers")
+    .update({ status: "pendiente" })
+    .eq("id", driverOfferId);
+
+  if (errorMarcarPendiente) {
+    console.error(
+      "unirmeAViaje: no se pudo marcar la oferta del conductor como pendiente",
+      errorMarcarPendiente
+    );
+  }
+
   revalidatePath("/home");
   revalidatePath("/consultar");
+  revalidatePath("/cancelar");
   return { success: true };
 }

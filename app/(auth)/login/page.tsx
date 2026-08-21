@@ -70,7 +70,7 @@ export default function LoginPage() {
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button id="login-submit" type="submit" className="w-full" disabled={loading}>
             {loading ? "Entrando..." : "Entrar"}
           </Button>
           <p className="text-sm text-muted-foreground">

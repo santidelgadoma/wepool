@@ -1,14 +1,19 @@
 import { Car, User, Search, Clock, Wallet } from "lucide-react";
 import { obtenerCandidatos } from "@/lib/actions/consultar";
+import { obtenerSolicitudesPendientesConductor } from "@/lib/actions/solicitudes";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ElegirBoton } from "@/components/elegir-boton";
+import { SolicitudCard } from "@/components/solicitud-card";
 import { formatearFechaHoraCDMX } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
 import { formatearMXN } from "@/lib/pricing";
 
 export default async function ConsultarPage() {
-  const { error, candidatos } = await obtenerCandidatos();
+  const [{ error, candidatos }, solicitudesPendientes] = await Promise.all([
+    obtenerCandidatos(),
+    obtenerSolicitudesPendientesConductor(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -18,6 +23,17 @@ export default async function ConsultarPage() {
           Revisa los candidatos compatibles y elige con quién compartir el viaje.
         </p>
       </div>
+
+      {solicitudesPendientes.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            Solicitudes por responder
+          </h2>
+          {solicitudesPendientes.map((solicitud) => (
+            <SolicitudCard key={solicitud.matchId} solicitud={solicitud} />
+          ))}
+        </div>
+      )}
 
       {error ? (
         <Card>
