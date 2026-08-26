@@ -104,7 +104,7 @@ export default async function HomePage({
   // navegación inferior, ver components/app-nav.tsx).
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex-shrink-0 space-y-6 pb-6">
+      <div className="flex-shrink-0 space-y-4 pb-4">
         {escuchaEnVivo && (
           <FeedRealtime
             institutionId={profile!.institution_id as string}
@@ -117,13 +117,15 @@ export default async function HomePage({
         {params.publicado === "1" && <PublicadoBanner />}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold">Hola, {profile?.full_name ?? user?.email}</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-xl font-semibold sm:text-2xl">
+              Hola, {profile?.full_name ?? user?.email}
+            </h1>
+            <p className="text-sm text-muted-foreground">
               Viajes disponibles para mañana{institucion ? ` · ${institucion}` : ""}.
             </p>
           </div>
           <Link href="/reserva">
-            <Button variant="outline">
+            <Button variant="outline" size="sm">
               <Car className="mr-2 h-4 w-4" />
               Voy a manejar
             </Button>
@@ -195,7 +197,7 @@ export default async function HomePage({
           );
         })}
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <LocationSwitcher configuradas={configuradas} seleccionada={kindSeleccionado} />
 
           {!ubicacionSeleccionada ? (

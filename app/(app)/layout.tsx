@@ -58,11 +58,11 @@ export default async function AppLayout({
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden">
       <header className="flex-shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex max-w-4xl items-center p-4">
+        <div className="mx-auto flex max-w-4xl items-center px-4 py-3">
           <Link href="/home" className="flex items-center gap-2 font-semibold">
             {/* eslint-disable-next-line @next/next/no-img-element -- ícono
-                fijo de 28px, next/image no aporta nada aquí */}
-            <img src="/logo-mascot.png" alt="" className="h-7 w-7 shrink-0" />
+                fijo de 24px, next/image no aporta nada aquí */}
+            <img src="/logo-mascot.png" alt="" className="h-6 w-6 shrink-0" />
             <span className="whitespace-nowrap">
               WEPOOL
               {institucion && (
@@ -87,7 +87,7 @@ export default async function AppLayout({
         </div>
       )}
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto h-full w-full max-w-4xl p-6">{children}</div>
+        <div className="mx-auto h-full w-full max-w-4xl p-4 sm:p-6">{children}</div>
       </main>
       <AppNav />
     </div>

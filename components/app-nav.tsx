@@ -90,7 +90,7 @@ export function AppNav() {
               href={link.href}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center gap-1 px-2 py-2.5 text-[11px] font-medium transition-colors",
+                "flex flex-1 flex-col items-center gap-1 px-2 py-2 text-[11px] font-medium transition-colors",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >

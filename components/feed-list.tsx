@@ -41,7 +41,7 @@ export function FeedList({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-shrink-0 gap-2 pb-4">
+      <div className="flex flex-shrink-0 gap-2 pb-3">
         <FiltroPill
           activo={filtro === "ida"}
           onClick={() => setFiltro("ida")}
@@ -62,7 +62,7 @@ export function FeedList({
             No hay viajes de {ETIQUETA_DIRECCION[filtro].toLowerCase()} disponibles todavía.
           </p>
         ) : (
-          <div className="flex flex-col gap-5 pb-6">
+          <div className="flex flex-col gap-3 pb-4">
             {lista.map((c) => (
               <TarjetaViaje key={c.offerId} candidato={c} savedLocationId={savedLocationId} />
             ))}
@@ -90,7 +90,7 @@ function FiltroPill({
       onClick={onClick}
       aria-pressed={activo}
       className={cn(
-        "flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold transition-colors",
+        "flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-sm font-semibold transition-colors",
         activo
           ? "bg-primary text-primary-foreground"
           : "border text-muted-foreground hover:bg-accent"
@@ -118,14 +118,14 @@ function TarjetaViaje({
 }) {
   const inicial = candidato.driverFirstName.charAt(0).toUpperCase();
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm">
+    <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-[15px] font-bold text-primary">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-primary">
             {inicial}
           </div>
           <div className="min-w-0">
-            <div className="truncate text-[15px] font-semibold">{candidato.driverFirstName}</div>
+            <div className="truncate text-sm font-semibold">{candidato.driverFirstName}</div>
             <div className="text-xs text-muted-foreground">
               {ETIQUETA_DIRECCION[candidato.direction]} ·{" "}
               {formatearFechaHoraCDMX(candidato.scheduledTime)}
@@ -133,7 +133,7 @@ function TarjetaViaje({
           </div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="text-xl font-bold leading-tight text-emerald-800">
+          <div className="text-lg font-bold leading-tight text-emerald-800">
             ~{formatearMXN(candidato.precioPasajeroMXN)}
           </div>
           <div className="text-[11px] text-muted-foreground">por el viaje</div>
