@@ -44,23 +44,23 @@ export function UnirmeBoton({
 
   if (unido) {
     return (
-      <p className="max-w-[10rem] text-right text-xs font-medium text-emerald-700">
+      <p className="text-center text-xs font-medium text-emerald-700">
         ¡Te uniste! Esperando confirmación del conductor.
       </p>
     );
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col gap-1">
       <Button
         id={`unirme-${driverOfferId}`}
-        size="sm"
+        className="w-full"
         onClick={handleClick}
         disabled={isPending}
       >
         {isPending ? "Uniéndote..." : "Unirme a este viaje"}
       </Button>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-center text-xs text-destructive">{error}</p>}
     </div>
   );
 }

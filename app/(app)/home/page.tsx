@@ -1,33 +1,18 @@
 import Link from "next/link";
-import {
-  Car,
-  MapPin,
-  Clock,
-  Wallet,
-  Sunrise,
-  Search,
-  History,
-  XCircle,
-  Hourglass,
-  CheckCircle2,
-  Info,
-} from "lucide-react";
+import { Car, MapPin, Search, Hourglass, CheckCircle2, Info } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { nombreInstitucion } from "@/lib/institucion";
 import { listarUbicaciones } from "@/lib/actions/ubicaciones";
 import { obtenerFeed } from "@/lib/actions/feed";
 import { obtenerEstadoPasajero, type EstadoDireccion } from "@/lib/actions/solicitudes";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LocationSwitcher } from "@/components/location-switcher";
 import { UbicacionForm } from "@/components/ubicacion-form";
-import { UnirmeBoton } from "@/components/unirme-boton";
 import { FeedRealtime } from "@/components/feed-realtime";
+import { FeedList } from "@/components/feed-list";
 import { PublicadoBanner } from "@/components/publicado-banner";
-import { formatearFechaHoraCDMX } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION, ETIQUETA_UBICACION } from "@/lib/etiquetas";
-import { formatearMXN } from "@/lib/pricing";
 
 const KINDS = ["casa", "oficina", "otro"] as const;
 type Kind = (typeof KINDS)[number];
@@ -35,13 +20,6 @@ type Kind = (typeof KINDS)[number];
 function esKindValido(valor: string | undefined): valor is Kind {
   return KINDS.includes(valor as Kind);
 }
-
-const ACCESOS_SECUNDARIOS = [
-  { href: "/consultar", label: "Confirmar como conductor", icon: Search },
-  { href: "/manana", label: "Viajes de mañana", icon: Sunrise },
-  { href: "/historial", label: "Historial", icon: History },
-  { href: "/cancelar", label: "Cancelar", icon: XCircle },
-];
 
 // El home dejó de ser un menú de accesos rápidos y ahora ES el feed de
 // viajes tipo Rappi/BlaBlaCar (ver PROGRESS.md, "Rediseño del home — feed de
@@ -108,118 +86,128 @@ export default async function HomePage({
   const escuchaEnVivo =
     ubicacionSeleccionada && profile?.institution_id && direccionesBloqueadas.length < 2;
 
+  // Estructura en dos franjas (ver PROGRESS.md, pedido del 2026-08-26
+  // "scroll fijo con mínimo de tres viajes visibles" -- mockup aprobado en
+  // Claude Design): todo lo de arriba (saludo, avisos, ubicación) es
+  // `flex-shrink-0` y se queda fijo; solo la lista de tarjetas del feed
+  // (dentro de FeedList) scrollea en su propio contenedor. Antes toda la
+  // pantalla era una sola columna con `space-y-6` que scrolleaba entera
+  // dentro de <main> -- eso es justo lo que hacía que hubiera que bajar toda
+  // la lista de viajes para llegar a la fila de accesos rápidos del fondo
+  // (que además ya no existe: sus 4 destinos ahora viven en la barra de
+  // navegación inferior, ver components/app-nav.tsx).
   return (
-    <div className="space-y-6">
-      {escuchaEnVivo && (
-        <FeedRealtime
-          institutionId={profile!.institution_id as string}
-          direccionesBloqueadas={direccionesBloqueadas}
-        />
-      )}
-      {/* Aviso de "¡Viaje publicado!" tras publicar como conductor (ver
-          lib/actions/reserva.ts, crearOferta) -- ahora redirige aquí en vez
-          de quedarse en /reserva mostrando el mensaje ahí. */}
-      {params.publicado === "1" && <PublicadoBanner />}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Hola, {profile?.full_name ?? user?.email}</h1>
-          <p className="text-muted-foreground">
-            Viajes disponibles para mañana{institucion ? ` · ${institucion}` : ""}.
-          </p>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex-shrink-0 space-y-6 pb-6">
+        {escuchaEnVivo && (
+          <FeedRealtime
+            institutionId={profile!.institution_id as string}
+            direccionesBloqueadas={direccionesBloqueadas}
+          />
+        )}
+        {/* Aviso de "¡Viaje publicado!" tras publicar como conductor (ver
+            lib/actions/reserva.ts, crearOferta) -- ahora redirige aquí en vez
+            de quedarse en /reserva mostrando el mensaje ahí. */}
+        {params.publicado === "1" && <PublicadoBanner />}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">Hola, {profile?.full_name ?? user?.email}</h1>
+            <p className="text-muted-foreground">
+              Viajes disponibles para mañana{institucion ? ` · ${institucion}` : ""}.
+            </p>
+          </div>
+          <Link href="/reserva">
+            <Button variant="outline">
+              <Car className="mr-2 h-4 w-4" />
+              Voy a manejar
+            </Button>
+          </Link>
         </div>
-        <Link href="/reserva">
-          <Button variant="outline">
-            <Car className="mr-2 h-4 w-4" />
-            Voy a manejar
-          </Button>
-        </Link>
-      </div>
 
-      {/* Aviso de rechazo (ver PROGRESS.md, "Solicitudes urgentes"): se
-          muestra una sola vez -- obtenerEstadoPasajero ya borró la oferta
-          'rechazado' que lo generó en cuanto la leyó, así que no reaparece
-          en la siguiente visita. */}
-      {estadoPasajero.avisosRechazo.map((direction) => (
-        <Card key={direction} className="border-destructive/30 bg-destructive/5">
-          <CardHeader className="flex flex-row items-center gap-3 py-4">
-            <Info className="h-5 w-5 shrink-0 text-destructive" />
-            <CardDescription className="text-sm text-foreground">
-              El conductor rechazó tu solicitud de{" "}
-              <strong>{ETIQUETA_DIRECCION[direction].toLowerCase()}</strong>. Puedes elegir otro
-              viaje de la lista de abajo.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ))}
-
-      {/* Tarjeta de estado por cada dirección bloqueada (ver PROGRESS.md,
-          "Solicitudes urgentes") -- fuera del bloque de ubicación guardada a
-          propósito: una solicitud pudo haberse originado desde /consultar
-          (flujo manual viejo, sin ubicación guardada), no solo desde este
-          feed, así que el aviso debe verse sin importar si ya se configuró
-          una ubicación. Reemplaza las tarjetas del feed de esa dirección
-          mientras el usuario tiene una solicitud pendiente o un viaje ya
-          confirmado. */}
-      {direccionesBloqueadas.map((direction) => {
-        const estado: EstadoDireccion = estadoPasajero.estados[direction];
-        const esConfirmado = estado === "confirmado";
-        return (
-          <Card
-            key={direction}
-            className={esConfirmado ? "border-emerald-300 bg-emerald-50" : "border-sky-300 bg-sky-50"}
-          >
+        {/* Aviso de rechazo (ver PROGRESS.md, "Solicitudes urgentes"): se
+            muestra una sola vez -- obtenerEstadoPasajero ya borró la oferta
+            'rechazado' que lo generó en cuanto la leyó, así que no reaparece
+            en la siguiente visita. */}
+        {estadoPasajero.avisosRechazo.map((direction) => (
+          <Card key={direction} className="border-destructive/30 bg-destructive/5">
             <CardHeader className="flex flex-row items-center gap-3 py-4">
-              {esConfirmado ? (
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
-              ) : (
-                <Hourglass className="h-5 w-5 shrink-0 text-sky-700" />
-              )}
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">
-                  {esConfirmado
-                    ? `Ya tienes un viaje de ${ETIQUETA_DIRECCION[direction].toLowerCase()} confirmado`
-                    : `Elegiste un viaje de ${ETIQUETA_DIRECCION[direction].toLowerCase()} — esperando respuesta del conductor`}
-                </p>
-                <CardDescription>
-                  {esConfirmado ? (
-                    <>
-                      Ya no puedes elegir otro viaje de {ETIQUETA_DIRECCION[direction].toLowerCase()}.
-                      Revisa el detalle en{" "}
-                      <Link className="underline" href="/manana">
-                        Viajes de mañana
-                      </Link>
-                      .
-                    </>
-                  ) : (
-                    "No puedes elegir otro viaje de esta dirección mientras esperas — si el conductor rechaza, se te avisa aquí y puedes elegir otro."
-                  )}
-                </CardDescription>
-              </div>
-            </CardHeader>
-          </Card>
-        );
-      })}
-
-      <div className="space-y-3">
-        <LocationSwitcher configuradas={configuradas} seleccionada={kindSeleccionado} />
-
-        {!ubicacionSeleccionada ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                Agrega tu dirección de {ETIQUETA_UBICACION[kindSeleccionado]}
-              </CardTitle>
-              <CardDescription>
-                La usamos para mostrarte viajes cercanos — se guarda para que no tengas que
-                volver a escribirla cada vez.
+              <Info className="h-5 w-5 shrink-0 text-destructive" />
+              <CardDescription className="text-sm text-foreground">
+                El conductor rechazó tu solicitud de{" "}
+                <strong>{ETIQUETA_DIRECCION[direction].toLowerCase()}</strong>. Puedes elegir otro
+                viaje de la lista de abajo.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <UbicacionForm kind={kindSeleccionado} />
-            </CardContent>
           </Card>
-        ) : (
-          <>
+        ))}
+
+        {/* Tarjeta de estado por cada dirección bloqueada (ver PROGRESS.md,
+            "Solicitudes urgentes") -- fuera del bloque de ubicación guardada a
+            propósito: una solicitud pudo haberse originado desde /consultar
+            (flujo manual viejo, sin ubicación guardada), no solo desde este
+            feed, así que el aviso debe verse sin importar si ya se configuró
+            una ubicación. Reemplaza las tarjetas del feed de esa dirección
+            mientras el usuario tiene una solicitud pendiente o un viaje ya
+            confirmado. */}
+        {direccionesBloqueadas.map((direction) => {
+          const estado: EstadoDireccion = estadoPasajero.estados[direction];
+          const esConfirmado = estado === "confirmado";
+          return (
+            <Card
+              key={direction}
+              className={esConfirmado ? "border-emerald-300 bg-emerald-50" : "border-sky-300 bg-sky-50"}
+            >
+              <CardHeader className="flex flex-row items-center gap-3 py-4">
+                {esConfirmado ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
+                ) : (
+                  <Hourglass className="h-5 w-5 shrink-0 text-sky-700" />
+                )}
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">
+                    {esConfirmado
+                      ? `Ya tienes un viaje de ${ETIQUETA_DIRECCION[direction].toLowerCase()} confirmado`
+                      : `Elegiste un viaje de ${ETIQUETA_DIRECCION[direction].toLowerCase()} — esperando respuesta del conductor`}
+                  </p>
+                  <CardDescription>
+                    {esConfirmado ? (
+                      <>
+                        Ya no puedes elegir otro viaje de {ETIQUETA_DIRECCION[direction].toLowerCase()}.
+                        Revisa el detalle en{" "}
+                        <Link className="underline" href="/manana">
+                          Viajes de mañana
+                        </Link>
+                        .
+                      </>
+                    ) : (
+                      "No puedes elegir otro viaje de esta dirección mientras esperas — si el conductor rechaza, se te avisa aquí y puedes elegir otro."
+                    )}
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+          );
+        })}
+
+        <div className="space-y-3">
+          <LocationSwitcher configuradas={configuradas} seleccionada={kindSeleccionado} />
+
+          {!ubicacionSeleccionada ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Agrega tu dirección de {ETIQUETA_UBICACION[kindSeleccionado]}
+                </CardTitle>
+                <CardDescription>
+                  La usamos para mostrarte viajes cercanos — se guarda para que no tengas que
+                  volver a escribirla cada vez.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <UbicacionForm kind={kindSeleccionado} />
+              </CardContent>
+            </Card>
+          ) : (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="h-3 w-3" />
@@ -237,8 +225,10 @@ export default async function HomePage({
                 </div>
               </details>
             </div>
+          )}
 
-            {feed.error ? (
+          {ubicacionSeleccionada &&
+            (feed.error ? (
               <Card>
                 <CardHeader>
                   <CardTitle>No se pudo cargar el feed</CardTitle>
@@ -262,62 +252,19 @@ export default async function HomePage({
                   </CardDescription>
                 </CardHeader>
               </Card>
-            ) : candidatosVisibles.length === 0 ? null : (
-              <div className="space-y-3">
-                {candidatosVisibles.map((c) => (
-                  <Card key={c.offerId}>
-                    <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge>
-                            <Car className="h-3 w-3" />
-                            {c.driverFirstName}
-                          </Badge>
-                          <Badge variant="outline">{ETIQUETA_DIRECCION[c.direction]}</Badge>
-                          <Badge variant="success">
-                            <Wallet className="h-3 w-3" />
-                            Pagarías ~{formatearMXN(c.precioPasajeroMXN)}
-                          </Badge>
-                        </div>
-                        <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            {formatearFechaHoraCDMX(c.scheduledTime)}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5" />
-                            ~{c.distanceKm.toFixed(1)} km
-                            {c.duracionMinutos !== null && ` · ~${c.duracionMinutos} min de trayecto`}
-                          </span>
-                          {c.vehicleDescription && <span>{c.vehicleDescription}</span>}
-                        </CardDescription>
-                      </div>
-                      <UnirmeBoton
-                        driverOfferId={c.offerId}
-                        savedLocationId={ubicacionSeleccionada.id}
-                      />
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+            ) : null)}
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-t pt-4">
-        {ACCESOS_SECUNDARIOS.map((acceso) => {
-          const Icon = acceso.icon;
-          return (
-            <Link key={acceso.href} href={acceso.href}>
-              <Button variant="ghost" size="sm">
-                <Icon className="mr-1.5 h-3.5 w-3.5" />
-                {acceso.label}
-              </Button>
-            </Link>
-          );
-        })}
-      </div>
+      {/* Única franja con scroll propio de la pantalla -- el resto de arriba
+          (saludo, avisos, ubicación) se queda fijo. Solo se monta cuando de
+          verdad hay algo que listar; los estados vacíos/error ya se
+          mostraron arriba, fuera de esta franja. */}
+      {ubicacionSeleccionada && !feed.error && candidatosVisibles.length > 0 && (
+        <div className="min-h-0 flex-1">
+          <FeedList candidatos={candidatosVisibles} savedLocationId={ubicacionSeleccionada.id} />
+        </div>
+      )}
     </div>
   );
 }
