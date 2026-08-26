@@ -57,11 +57,17 @@ export default async function HomePage({
     : ((ubicaciones[0]?.kind as Kind | undefined) ?? "casa");
   const ubicacionSeleccionada = ubicaciones.find((u) => u.kind === kindSeleccionado) ?? null;
 
+  // Las dos ramas del ternario deben resolver EXACTAMENTE al mismo tipo
+  // (Awaited<ReturnType<typeof obtenerFeed>>, con `error` opcional) -- si no,
+  // TypeScript infiere la unión de ambas formas de objeto y `feed.error` dos
+  // líneas más abajo deja de existir en la rama que no lo declara, lo cual
+  // pasa inadvertido en `next dev` pero rompe `next build` (así se detectó:
+  // error de compilación al desplegar).
   const [feed, estadoPasajero] = await Promise.all([
     ubicacionSeleccionada
       ? obtenerFeed(ubicacionSeleccionada.id)
-      : Promise.resolve({
-          candidatos: [] as Awaited<ReturnType<typeof obtenerFeed>>["candidatos"],
+      : Promise.resolve<Awaited<ReturnType<typeof obtenerFeed>>>({
+          candidatos: [],
         }),
     obtenerEstadoPasajero(),
   ]);
