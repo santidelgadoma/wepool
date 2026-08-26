@@ -2,6 +2,9 @@
   "name": "wepool",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +13,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "seed:cuajimalpa": "tsx scripts/seed-cuajimalpa.ts",
+    "seed:polanco": "tsx scripts/seed-polanco.ts"
   },
   "dependencies": {
     "next": "^15.0.0",
@@ -28,7 +33,7 @@
   },
   "devDependencies": {
     "typescript": "^5.5.4",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/ws": "^8.5.12",
