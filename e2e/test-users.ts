@@ -112,3 +112,67 @@ export const PASAJERO_CANCELA_PROPIA = {
   fullName: "CancelaPropia Pasajero",
   phone: "5500000013",
 };
+
+// Usuarios dedicados a e2e/regreso-flow.spec.ts (CU-COND-03/04 de
+// docs/casos_de_uso.md: publicar un viaje de REGRESO con punto de encuentro,
+// y la validación de servidor cuando el punto de encuentro llega vacío tras
+// recortar espacios). Ningún otro spec publica todavía un viaje de
+// `direction: "regreso"` -- mismo motivo de siempre para usuarios propios.
+export const CONDUCTOR_REGRESO = {
+  email: "e2e.conductor.regreso@itam.mx",
+  fullName: "Regreso ConductorPrueba",
+  phone: "5500000014",
+};
+
+export const PASAJERO_REGRESO = {
+  email: "e2e.pasajero.regreso@itam.mx",
+  fullName: "RegresoPasajero Prueba",
+  phone: "5500000015",
+};
+
+export const CONDUCTOR_REGRESO_INVALIDO = {
+  email: "e2e.conductor.regreso.invalido@itam.mx",
+  fullName: "RegresoInvalido ConductorPrueba",
+  phone: "5500000016",
+};
+
+// Usuarios dedicados a e2e/chat-flow.spec.ts (CU-CHAT-01/02 de
+// docs/casos_de_uso.md, sección G: intercambio de mensajes en tiempo real
+// por viaje confirmado, y la verificación negativa de que un tercero ajeno
+// no puede entrar al chat de otros dos usuarios). Dos pares distintos —
+// CHAT/CHAT_2 — para que CU-CHAT-02 tenga su propio confirmed_trip sin
+// chocar con el de CU-CHAT-01 (ambos usan direction: "ida"; reusar el mismo
+// par haría que el segundo intento de "elegir" fallara por
+// tieneSolicitudActivaEnDireccion, que ya bloquea una segunda solicitud de
+// ida mientras la primera sigue 'confirmado'). USUARIO_AJENO_CHAT es el
+// tercero que intenta entrar sin pertenecer a ningún viaje — primera prueba
+// negativa de RLS explícita de toda la suite.
+export const CONDUCTOR_CHAT = {
+  email: "e2e.conductor.chat@itam.mx",
+  fullName: "Chat ConductorPrueba",
+  phone: "5500000017",
+};
+
+export const PASAJERO_CHAT = {
+  email: "e2e.pasajero.chat@itam.mx",
+  fullName: "ChatPasajero Prueba",
+  phone: "5500000018",
+};
+
+export const CONDUCTOR_CHAT_2 = {
+  email: "e2e.conductor.chat2@itam.mx",
+  fullName: "Chat2 ConductorPrueba",
+  phone: "5500000019",
+};
+
+export const PASAJERO_CHAT_2 = {
+  email: "e2e.pasajero.chat2@itam.mx",
+  fullName: "Chat2Pasajero Prueba",
+  phone: "5500000020",
+};
+
+export const USUARIO_AJENO_CHAT = {
+  email: "e2e.ajeno.chat@itam.mx",
+  fullName: "Ajeno ChatPrueba",
+  phone: "5500000021",
+};
