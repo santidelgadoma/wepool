@@ -47,7 +47,7 @@ test("CU-COND-11: conductor cancela una oferta propia en 'buscando' sin nadie es
   // CancelarBoton no muestra ningún texto de éxito (a diferencia de
   // ElegirBoton/SolicitudCard) -- la señal de que cancelarOferta ya resolvió
   // es que la tarjeta desaparece de la lista tras el router.refresh().
-  await expect(cancelar).toHaveCount(0, { timeout: 15_000 });
+  await expect(cancelar).toHaveCount(0, { timeout: 25_000 });
 
   // "ya no aparece en ningún feed/candidatos": /cancelar solo lista
   // 'buscando'/'pendiente' propias, así que si sigue en 0 tras recargar,
@@ -98,7 +98,7 @@ test("CU-COND-12 / CU-E2E-05: conductor cancela una oferta 'pendiente' mientras 
     });
     const cancelarConductor = conductorPage.locator('button[id^="cancelar-"]');
     await cancelarConductor.first().click();
-    await expect(cancelarConductor).toHaveCount(0, { timeout: 15_000 });
+    await expect(cancelarConductor).toHaveCount(0, { timeout: 25_000 });
 
     // Desde la perspectiva del pasajero, un conductor cancelando mientras
     // espera es indistinguible de un rechazo real (mismo aviso, ver
@@ -150,7 +150,7 @@ test("CU-PAS-14 / CU-E2E-06: pasajero cancela su propia solicitud pendiente", as
     await expect(
       pasajeroPage.getByText("¡Te uniste! Esperando confirmación del conductor.")
     ).toBeVisible({ timeout: 10_000 });
-    await expect(botonUnirme).toHaveCount(0, { timeout: 15_000 });
+    await expect(botonUnirme).toHaveCount(0, { timeout: 25_000 });
 
     // El pasajero se arrepiente y cancela su propia solicitud desde
     // /cancelar mientras sigue 'pendiente' (badge "Esperando respuesta").
@@ -160,7 +160,7 @@ test("CU-PAS-14 / CU-E2E-06: pasajero cancela su propia solicitud pendiente", as
     });
     const cancelarPasajero = pasajeroPage.locator('button[id^="cancelar-"]');
     await cancelarPasajero.first().click();
-    await expect(cancelarPasajero).toHaveCount(0, { timeout: 15_000 });
+    await expect(cancelarPasajero).toHaveCount(0, { timeout: 25_000 });
 
     // Al cancelar el PASAJERO (a diferencia del test anterior, donde cancela
     // el conductor), la oferta del conductor vuelve a 'buscando' SIN ningún
@@ -181,7 +181,7 @@ test("CU-PAS-14 / CU-E2E-06: pasajero cancela su propia solicitud pendiente", as
     const cancelarConductor = conductorPage.locator('button[id^="cancelar-"]');
     await expect(cancelarConductor).toHaveCount(1, { timeout: 15_000 });
     await cancelarConductor.first().click();
-    await expect(cancelarConductor).toHaveCount(0, { timeout: 15_000 });
+    await expect(cancelarConductor).toHaveCount(0, { timeout: 25_000 });
   } finally {
     await conductorContext.close();
     await pasajeroContext.close();

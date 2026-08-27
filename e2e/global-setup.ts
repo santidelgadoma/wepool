@@ -22,6 +22,12 @@ import {
   CONDUCTOR_CHAT_2,
   PASAJERO_CHAT_2,
   USUARIO_AJENO_CHAT,
+  CONDUCTOR_RATE,
+  PASAJERO_RATE,
+  CONDUCTOR_RATE_NOSHOW,
+  PASAJERO_RATE_NOSHOW,
+  CONDUCTOR_RATE_COLUSION,
+  PASAJERO_RATE_COLUSION,
   TEST_PASSWORD,
 } from "./test-users";
 
@@ -76,6 +82,12 @@ export default async function globalSetup() {
     CONDUCTOR_CHAT_2,
     PASAJERO_CHAT_2,
     USUARIO_AJENO_CHAT,
+    CONDUCTOR_RATE,
+    PASAJERO_RATE,
+    CONDUCTOR_RATE_NOSHOW,
+    PASAJERO_RATE_NOSHOW,
+    CONDUCTOR_RATE_COLUSION,
+    PASAJERO_RATE_COLUSION,
   ];
   for (const persona of personas) {
     const userId = await asegurarUsuarioDePrueba(admin, persona);
@@ -129,4 +141,16 @@ async function limpiarDatosDePrueba(admin: SupabaseClient, userId: string) {
   // upsert por (user_id, kind), así que en la práctica esto es más bien
   // higiene que una necesidad estricta).
   await admin.from("saved_locations").delete().eq("user_id", userId);
+  // trip_ratings cuelga de confirmed_trips con `on delete cascade` (ver
+  // supabase/migrations/0011_calificaciones.sql), así que el delete de
+  // arriba ya se lleva también cualquier calificación de una corrida
+  // anterior -- PERO el trigger que recalcula profiles.rating_avg/
+  // rating_count solo dispara en insert/update de trip_ratings, nunca en
+  // delete, así que el cascade NO reinicia esas dos columnas por sí solo.
+  // Sin este reset explícito, e2e/calificaciones-flow.spec.ts (CU-RATE-04)
+  // fallaría en la SEGUNDA corrida en adelante: el conductor de la prueba de
+  // "no se realizó" ya tendría un rating_avg/rating_count "sucio" de la
+  // corrida anterior, y la prueba no podría distinguir "no afecta el
+  // promedio" de "el promedio no se leyó bien".
+  await admin.from("profiles").update({ rating_avg: null, rating_count: 0 }).eq("id", userId);
 }

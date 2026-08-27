@@ -1,4 +1,6 @@
 import { type Page, expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import { WebSocket } from "ws";
 import { TEST_PASSWORD } from "./test-users";
 
 export async function login(page: Page, email: string) {
@@ -45,6 +47,18 @@ export async function publicarViaje(page: Page, datos: DatosViaje) {
   await page.locator("#scheduledTime").fill(datos.hora ?? "08:00");
 
   if (datos.role === "conductor") {
+    // Si el conductor ya tiene ≥1 vehículo registrado (p.ej. una segunda
+    // oferta publicada por el mismo usuario dentro del mismo spec),
+    // reserva-form.tsx arranca el <select> apuntando a ese vehículo
+    // existente (`vehiculos[0]?.id ?? "nuevo"`) en vez de a "Registrar un
+    // vehículo nuevo…", así que los inputs `newVehiclePlate`/
+    // `newVehicleDescription` no se renderizan hasta elegir esa opción a
+    // propósito. El helper siempre quiere registrar el vehículo que le
+    // pasaron, así que fuerza esa opción cuando el selector existe.
+    const vehicleSelect = page.locator("#vehicle-choice-select");
+    if (await vehicleSelect.count()) {
+      await vehicleSelect.selectOption("nuevo");
+    }
     await page.locator('input[name="newVehiclePlate"]').fill(datos.vehiculo?.placas ?? "E2E-001");
     await page
       .locator('input[name="newVehicleDescription"]')
@@ -83,4 +97,42 @@ export async function guardarUbicacionCasa(page: Page, address: string) {
   // señal de éxito es que HomePage deja de mostrar el formulario de "Agrega
   // tu dirección" y en su lugar muestra "Cerca de <dirección guardada>".
   await expect(page.getByText(`Cerca de ${address}`)).toBeVisible({ timeout: 20_000 });
+}
+
+// ─── Cliente admin para e2e/calificaciones-flow.spec.ts ────────────────────
+// Mismo patrón que e2e/global-setup.ts y lib/supabase/admin.ts (llave de
+// servicio -- salta RLS -- y `ws` como transporte porque @supabase/supabase-js
+// crea un RealtimeClient interno que exige WebSocket nativo en Node < 22).
+// playwright.config.ts ya carga .env.local a mano antes de correr cualquier
+// test, así que SUPABASE_SERVICE_ROLE_KEY está disponible aquí igual que en
+// global-setup.ts, sin configuración adicional.
+export function crearClienteAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+      realtime: { transport: WebSocket as never },
+    }
+  );
+}
+
+// Fuerza confirmed_trips.status = 'completado' para un viaje de prueba sin
+// esperar los 15 minutos del cron real (complete_past_confirmed_trips, ver
+// supabase/migrations/0011_calificaciones.sql) -- opción (a), la recomendada
+// en el hallazgo E-8 de docs/casos_de_uso.md: usar el cliente admin para
+// forzar el estado directo en vez de crear el viaje con scheduled_time en el
+// pasado y esperar el cron de verdad (mucho más lento y menos confiable en
+// un spec).
+export async function completarViajeComoAdmin(confirmedTripId: string) {
+  const admin = crearClienteAdmin();
+  const { error } = await admin
+    .from("confirmed_trips")
+    .update({ status: "completado" })
+    .eq("id", confirmedTripId);
+  if (error) {
+    throw new Error(
+      `No se pudo forzar status='completado' en confirmed_trip ${confirmedTripId}: ${error.message}`
+    );
+  }
 }

@@ -228,6 +228,7 @@ export function ReservaForm({
                 <Label>Vehículo</Label>
                 {vehiculos.length > 0 && (
                   <select
+                    id="vehicle-choice-select"
                     className={SELECT_CLASSNAME}
                     value={vehicleChoice}
                     onChange={(e) => setVehicleChoice(e.target.value)}

@@ -80,7 +80,13 @@ test("CU-CHAT-01: conductor y pasajero con viaje confirmado chatean en tiempo re
     const chatLink = conductorPage.locator('a[href^="/chat/"]').first();
     await expect(chatLink).toBeVisible({ timeout: 15_000 });
     await chatLink.click();
-    await expect(conductorPage).toHaveURL(/\/chat\//, { timeout: 15_000 });
+    // 30s en vez de 15s: /chat/[tripId] es una ruta dinámica que ningún
+    // spec anterior visita en esta corrida (calificaciones-flow.spec.ts
+    // solo lee el atributo href, nunca navega ahí), así que `next dev` la
+    // compila sobre la marcha aquí por primera vez -- mismo motivo que ya
+    // documenta login() (helpers.ts) para /home, generalizado a esta otra
+    // ruta.
+    await expect(conductorPage).toHaveURL(/\/chat\//, { timeout: 30_000 });
     const tripId = conductorPage.url().split("/chat/")[1];
 
     // El pasajero entra al MISMO chat ANTES de que se mande cualquier

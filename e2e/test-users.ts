@@ -176,3 +176,64 @@ export const USUARIO_AJENO_CHAT = {
   fullName: "Ajeno ChatPrueba",
   phone: "5500000021",
 };
+
+// Usuarios dedicados a e2e/calificaciones-flow.spec.ts (CU-RATE-01 a 06 y
+// CU-E2E-09 de docs/casos_de_uso.md, sección H). Tres pares -- uno por
+// escenario, mismo motivo de siempre (usuarios propios para no compartir
+// estado entre specs sin importar el orden en que corran):
+//   - RATE: ciclo principal (calificar, no poder calificar un viaje que
+//     sigue programado, editar, y el bloqueo real de /reserva) -- publica
+//     un viaje de ida Y uno de regreso el mismo día (el máximo legítimo de
+//     2 que permite el guardarraíl anti-colusión de 0011_calificaciones.sql),
+//     así el de regreso sirve también para CU-RATE-02 (se deja 'programado'
+//     a propósito, sin forzar 'completado', para probar que no se puede
+//     calificar).
+//   - RATE_NOSHOW: par aparte para que "no se realizó" (CU-RATE-04) se
+//     verifique sobre un conductor con reputación limpia (rating_count = 0
+//     antes de la prueba) -- si reusara el par RATE, el conductor ya tendría
+//     una calificación real de otra prueba y no se podría distinguir "no
+//     afecta el promedio" de "el promedio no cambió porque no se leyó bien".
+//   - RATE_COLUSION: par aparte para CU-RATE-06 (anti-colusión). Publica los
+//     mismos 2 viajes legítimos del mismo día (ida + regreso) por la UI, y
+//     el tercero se inserta DIRECTO con el cliente admin (ver
+//     e2e/calificaciones-flow.spec.ts) -- el candado de dirección de
+//     tieneSolicitudActivaEnDireccion (lib/actions/solicitudes.ts) ya le
+//     impide a un pasajero real llegar a un tercer viaje confirmado el mismo
+//     día por la UI normal, así que ese trigger de base de datos es en la
+//     práctica una defensa que la UI nunca ejercita -- probarlo con un
+//     insert directo es la única forma honesta de confirmar que sí funciona.
+export const CONDUCTOR_RATE = {
+  email: "e2e.conductor.rate@itam.mx",
+  fullName: "Rate ConductorPrueba",
+  phone: "5500000022",
+};
+
+export const PASAJERO_RATE = {
+  email: "e2e.pasajero.rate@itam.mx",
+  fullName: "RatePasajero Prueba",
+  phone: "5500000023",
+};
+
+export const CONDUCTOR_RATE_NOSHOW = {
+  email: "e2e.conductor.rate.noshow@itam.mx",
+  fullName: "RateNoShow ConductorPrueba",
+  phone: "5500000024",
+};
+
+export const PASAJERO_RATE_NOSHOW = {
+  email: "e2e.pasajero.rate.noshow@itam.mx",
+  fullName: "RateNoShowPasajero Prueba",
+  phone: "5500000025",
+};
+
+export const CONDUCTOR_RATE_COLUSION = {
+  email: "e2e.conductor.rate.colusion@itam.mx",
+  fullName: "RateColusion ConductorPrueba",
+  phone: "5500000026",
+};
+
+export const PASAJERO_RATE_COLUSION = {
+  email: "e2e.pasajero.rate.colusion@itam.mx",
+  fullName: "RateColusionPasajero Prueba",
+  phone: "5500000027",
+};
