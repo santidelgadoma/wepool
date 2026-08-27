@@ -1,7 +1,9 @@
-import { Car, User, MapPin, Clock, Flag, Wallet, Sunrise } from "lucide-react";
+import Link from "next/link";
+import { Car, User, MapPin, Clock, Flag, Wallet, Sunrise, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatearFechaHoraCDMX, rangoUTCDeManana } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
 import {
@@ -102,6 +104,14 @@ export default async function MananaPage() {
                     )}
                   </CardDescription>
                 </CardHeader>
+                <CardFooter className="pt-0">
+                  <Link href={`/chat/${viaje.id}`}>
+                    <Button id={`chat-link-${viaje.id}`} variant="outline" size="sm">
+                      <MessageCircle className="mr-1.5 h-3.5 w-3.5" />
+                      Chat
+                    </Button>
+                  </Link>
+                </CardFooter>
               </Card>
             );
           })}

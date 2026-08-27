@@ -92,6 +92,7 @@
 | CU-E2E-05 | Conductor cancela una oferta `pendiente` mientras el pasajero espera → el pasajero recibe el mismo aviso que un rechazo | ✅ `e2e/cancelacion-flow.spec.ts` |
 | CU-E2E-06 | Pasajero cancela mientras espera respuesta → la oferta del conductor vuelve a `buscando` (sin aviso especial) y aparece de nuevo en el feed de otros pasajeros | ✅ `e2e/cancelacion-flow.spec.ts` |
 | CU-E2E-07 | Registro real de un usuario nuevo → confirma por correo → publica su primer viaje | ⬜ No cubierto (depende de un correo real, ver H-3) |
+| CU-E2E-08 | Viaje se confirma → conductor y pasajero chatean en tiempo real desde `/manana` → ambos ven los mensajes del otro sin recargar | ⬜ No cubierto |
 
 ---
 
@@ -120,3 +121,14 @@ De los **~50 casos de uso** identificados arriba (sin contar variaciones de erro
 6. CU-PAS-09 / CU-E2E-04 (feed en tiempo real) — al final, por el riesgo de flakiness mencionado en el hallazgo H-3.
 
 Este documento no incluye código de Playwright todavía — es el mapa para escribirlo. Dime con cuáles casos de uso quieres que arranque y sigo con los specs.
+
+---
+
+## G. Chat (nueva — ver `docs/diseno_chat_y_calificaciones.md` sección A)
+
+| ID | Caso de uso | Precondición | Pasos | Resultado esperado | Prioridad | Automatización |
+|---|---|---|---|---|---|---|
+| CU-CHAT-01 | Conductor y pasajero con viaje confirmado intercambian mensajes y ambos los ven en tiempo real sin recargar | Viaje confirmado (CU-COND-08/CU-PAS-07) | `/manana` → `#chat-link-<tripId>` → escribir en `#mensaje-input` → `#enviar-mensaje-submit`; repetir del otro lado en OTRA pestaña | El mensaje aparece como burbuja (`#mensaje-<id>`) del lado de quien lo mandó y, sin recargar, también del lado de la contraparte | 🔴 Alta (funcionalidad nueva, corazón de la coordinación post-confirmación) | ⬜ No cubierto |
+| CU-CHAT-02 | Un usuario ajeno al viaje no puede leer ni mandar mensajes de un chat que no le pertenece | Viaje confirmado entre otros dos usuarios, `confirmedTripId` conocido | Con sesión de un tercer usuario, `goto("/chat/<tripId>")` directo | `obtenerChatInicial` regresa `ok:false` → redirige a `/manana` (defensa en profundidad además de la RLS de `trip_messages`/`realtime.messages` en `0010_chat.sql`, que rechazaría el acceso igual si se saltara la página) | 🟡 Media (seguridad) | ⬜ No cubierto |
+
+---

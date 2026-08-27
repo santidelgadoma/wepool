@@ -59,3 +59,15 @@ export function formatearFechaHoraCDMX(isoTimestamp: string): string {
     minute: "2-digit",
   }).format(new Date(isoTimestamp));
 }
+
+/** Solo la hora en CDMX, ej. "08:30 a.m." -- usado en el chat
+ * (components/chat-window.tsx), donde repetir fecha completa en cada burbuja
+ * de mensaje sería ruido (todos los mensajes de un viaje confirmado caen en
+ * un rango de días muy angosto). */
+export function formatearHoraCDMX(isoTimestamp: string): string {
+  return new Intl.DateTimeFormat("es-MX", {
+    timeZone: ZONA_CDMX,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(isoTimestamp));
+}
