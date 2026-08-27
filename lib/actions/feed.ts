@@ -7,7 +7,8 @@ import { estimarPrecioViaje, duracionDesdeMetros } from "@/lib/pricing";
 import { rangoUTCDeManana } from "@/lib/datetime";
 import { calcularMatrizRutas, calcularRutaReal } from "@/lib/rutas";
 import { tieneSolicitudActivaEnDireccion } from "@/lib/actions/solicitudes";
-import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
+import { tieneViajesSinCalificar } from "@/lib/actions/calificaciones";
+import { ETIQUETA_DIRECCION, MENSAJE_BLOQUEO_SIN_CALIFICAR } from "@/lib/etiquetas";
 
 const RADIO_KM = 15;
 const LIMITE_FEED = 30;
@@ -147,6 +148,12 @@ async function unirmeAViajeInterno(
   } = await supabase.auth.getUser();
   if (!user) {
     return { error: "Tu sesión expiró. Vuelve a iniciar sesión." };
+  }
+
+  // Calificación obligatoria (ver lib/actions/calificaciones.ts) -- también
+  // aplica a unirse desde el feed, no solo a publicar en /reserva.
+  if (await tieneViajesSinCalificar(supabase, user.id)) {
+    return { error: MENSAJE_BLOQUEO_SIN_CALIFICAR };
   }
 
   const { data: ubicacion } = await supabase

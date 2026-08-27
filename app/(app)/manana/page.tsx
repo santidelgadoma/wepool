@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RatingBadge } from "@/components/rating-badge";
 import { formatearFechaHoraCDMX, rangoUTCDeManana } from "@/lib/datetime";
 import { ETIQUETA_DIRECCION } from "@/lib/etiquetas";
 import {
@@ -29,6 +30,23 @@ export default async function MananaPage() {
     .gte("scheduled_time", inicio)
     .lt("scheduled_time", fin)
     .order("scheduled_time", { ascending: true });
+
+  // Badge de calificación de la contraparte (ver
+  // supabase/migrations/0011_calificaciones.sql, componentes/rating-badge.tsx)
+  // -- una sola consulta extra, en lote, para todos los viajes de la lista;
+  // la política "select matched profile" (0001_init_schema.sql) ya permite
+  // leer rating_avg/rating_count de estos perfiles porque todos son
+  // contrapartes de un confirmed_trip con el usuario actual.
+  const idsContraparte = Array.from(
+    new Set(
+      (viajes ?? []).map((v) => (v.driver_id === user!.id ? v.passenger_id : v.driver_id))
+    )
+  );
+  const { data: perfilesContraparte } =
+    idsContraparte.length > 0
+      ? await supabase.from("profiles").select("id, rating_avg, rating_count").in("id", idsContraparte)
+      : { data: [] as { id: string; rating_avg: number | null; rating_count: number }[] };
+  const mapaRating = new Map((perfilesContraparte ?? []).map((p) => [p.id, p]));
 
   return (
     <div className="space-y-6">
@@ -64,6 +82,8 @@ export default async function MananaPage() {
           {viajes.map((viaje) => {
             const esConductor = viaje.driver_id === user!.id;
             const precio = precioDeMatchEmbebido(viaje.trip_matches as TripMatchEmbebido);
+            const contraparteId = esConductor ? viaje.passenger_id : viaje.driver_id;
+            const rating = mapaRating.get(contraparteId);
 
             return (
               <Card key={viaje.id}>
@@ -77,6 +97,7 @@ export default async function MananaPage() {
                       )}
                       {esConductor ? "Conductor" : "Pasajero"} ·{" "}
                       {ETIQUETA_DIRECCION[viaje.direction as "ida" | "regreso"]}
+                      {rating && <RatingBadge avg={rating.rating_avg} count={rating.rating_count} />}
                     </CardTitle>
                     {precio && (
                       <Badge variant="success">

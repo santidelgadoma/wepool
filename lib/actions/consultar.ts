@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { estimarPrecioViaje, VELOCIDAD_PROMEDIO_KMH, duracionDesdeMetros } from "@/lib/pricing";
 import { calcularMatrizRutas } from "@/lib/rutas";
 import { tieneSolicitudActivaEnDireccion } from "@/lib/actions/solicitudes";
+import { tieneViajesSinCalificar } from "@/lib/actions/calificaciones";
+import { MENSAJE_BLOQUEO_SIN_CALIFICAR } from "@/lib/etiquetas";
 
 const RADIO_KM = 15;
 const VENTANA_MINUTOS = 30;
@@ -316,6 +318,13 @@ async function elegirCandidatoInterno(matchId: string): Promise<ElegirCandidatoS
   if (soyElPasajero) {
     if (match.passenger_confirmed) {
       return { error: "Ya habías elegido este viaje." };
+    }
+
+    // Calificación obligatoria (ver lib/actions/calificaciones.ts) — también
+    // aplica a elegir un candidato desde /consultar, no solo a publicar en
+    // /reserva o unirse desde el feed.
+    if (await tieneViajesSinCalificar(supabase, user.id)) {
+      return { error: MENSAJE_BLOQUEO_SIN_CALIFICAR };
     }
 
     // Misma defensa en profundidad que unirmeAViaje (lib/actions/feed.ts) —

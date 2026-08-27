@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { geocodificarDireccion, GeocodingError, distanciaHaversineKm } from "@/lib/geocoding";
 import { estimarPrecioViaje } from "@/lib/pricing";
 import { datetimeLocalCDMXaUTC, fechaDeMananaCDMX } from "@/lib/datetime";
+import { tieneViajesSinCalificar } from "@/lib/actions/calificaciones";
+import { MENSAJE_BLOQUEO_SIN_CALIFICAR } from "@/lib/etiquetas";
 
 // Antes este campo era un <input type="datetime-local"> completo y se
 // validaba que la fecha fuera exactamente "mañana". Ahora el formulario solo
@@ -107,6 +109,16 @@ export async function crearOferta(
 
   if (!user) {
     return { error: "Tu sesión expiró. Vuelve a iniciar sesión e intenta de nuevo." };
+  }
+
+  // Calificación obligatoria (ver lib/actions/calificaciones.ts): no se
+  // puede publicar/reservar un viaje nuevo mientras haya uno completado sin
+  // calificar. La UI ya lo bloquea antes de esto (ver
+  // app/(app)/reserva/page.tsx, que ni siquiera renderiza el formulario en
+  // ese caso) -- esto es defensa en profundidad por si alguien llega aquí
+  // con una versión vieja de la página en caché.
+  if (await tieneViajesSinCalificar(supabase, user.id)) {
+    return { error: MENSAJE_BLOQUEO_SIN_CALIFICAR };
   }
 
   let vehicleId: string | null = datos.vehicleId ?? null;
