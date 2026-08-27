@@ -28,3 +28,12 @@ export const ETIQUETA_UBICACION: Record<"casa" | "oficina" | "otro", string> = {
   oficina: "Oficina",
   otro: "Otro",
 };
+
+// Calificación obligatoria (ver lib/actions/calificaciones.ts,
+// docs/diseno_chat_y_calificaciones.md sección B.7) -- vive aquí, no en
+// calificaciones.ts, porque un archivo "use server" solo puede exportar
+// funciones async (Next.js lo rechaza en build si exporta una constante de
+// valor); este archivo ya es el lugar establecido para strings compartidos
+// que no son Server Actions.
+export const MENSAJE_BLOQUEO_SIN_CALIFICAR =
+  "Tienes viajes completados sin calificar. Ve a Historial y califícalos antes de reservar o unirte a un viaje nuevo.";
